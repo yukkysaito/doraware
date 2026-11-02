@@ -20,7 +20,7 @@ import numpy as np
 from doraware.core.occupancy import grid_to_boxes
 from doraware.evaluation.scenarios.bundle import (FEASIBLE, INFEASIBLE, INVALID_INPUT, PARAMETER,  # noqa: F401
                                                   RANDOMIZED, ExpectedBehavior, ScenarioBundle)
-from doraware.planning.plugins.state_lattice.path import ensure_planner_importable
+from doraware.core.third_party import ensure_planner_importable
 from doraware.interfaces import (Header, OccupancyGrid, PlanningRequest, Pose2D, SimulationScene,
                                    VehicleParameters)
 
@@ -105,7 +105,9 @@ def build_bundle(scenario_id: str, seed: int = 42, dynamics: Optional[dict] = No
     request = PlanningRequest(header=header, request_id=f"{sc.id}/0", start=Pose2D(*map(float, sc.start)),
                               goal=Pose2D(*map(float, sc.goal)), map=occ, vehicle=planner_vehicle,
                               planner_config=json.dumps(sc.planner_overrides or {}, default=_json_default))
-    return ScenarioBundle(sc.id, sc.name, sc.category, sc.description, scene, request, classify(sc),
+    expected = classify(sc)
+    expected.safety_margin = float((sc.planner_overrides or {}).get("safety_margin", 0.1))   # planner's margin
+    return ScenarioBundle(sc.id, sc.name, sc.category, sc.description, scene, request, expected,
                           tags=tuple(sc.tags), difficulty=sc.difficulty, vehicle_name=planner_vehicle.name,
                           planner_vehicle_valid=valid, extra={"meta": dict(sc.meta)})
 

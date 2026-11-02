@@ -17,7 +17,9 @@ from doraware.core.node import NodeRuntime
 def main() -> None:
     rt = NodeRuntime("scenario_manager", {"scenario_done": ScenarioDone, "planner_diagnostics": Diagnostics,
                                           "planning_result": PlanningResult})
-    sid = os.environ.get("DORAWARE_SCENARIO", "B2")
+    sid = os.environ.get("DORAWARE_SCENARIO")
+    if not sid:
+        raise RuntimeError("DORAWARE_SCENARIO is not set (the runner sets it: doraware run --scenario ...)")
     seed = int(os.environ.get("DORAWARE_SEED", "42"))
     b = make_scenario_source(rt.cfg).build(sid, seed, rt.cfg)
     info = {"scenario_id": b.scenario_id, "name": b.name, "category": b.category, "description": b.description,
@@ -29,6 +31,10 @@ def main() -> None:
                                           description=json.dumps(info, default=str)))
     rt.send("scene", b.scene)
     rt.send("planning_request", b.request)
+    # the static maps as topics of their own, for components other than planning
+    # (perception, localization, prediction); the planning request carries them too
+    rt.send("occupancy_grid", dataclasses.replace(b.request.map, header=rt.header(0, "occupancy_grid")))
+    rt.send("lane_map", dataclasses.replace(b.request.lanes, header=rt.header(0, "lane_map")))
     rt.log.info("scenario %s (%s, %s) published", b.scenario_id, b.name, b.expected.scenario_class)
     # Stay alive until the run is over: Dora's shared-memory payloads must
     # outlive the sender until every receiver has mapped them.

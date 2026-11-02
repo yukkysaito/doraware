@@ -21,7 +21,12 @@ def to_frame(state: Dict[str, Any]) -> SimFrame:
                     step_wall_time=float(state.get("step_wall_time", 0.0)))
 
 
+CAMERAS = {"top": 0, "chase": 1, "free": 2, "overview": 3}    # gui/camera_rig.gd modes
+
+
 class GodotBackend:
+    cameras = tuple(CAMERAS)
+
     def __init__(self, params: Dict[str, Any], cfg: Dict[str, Any], *, physics_hz: float,
                  log_path: Optional[str] = None, gui: bool = False):
         sim_cfg = dict(params)
@@ -45,9 +50,11 @@ class GodotBackend:
                               path_gear=viz.path_gear, objects=viz.objects, lanes=viz.lanes,
                               route_lane_ids=viz.route_lane_ids)
 
-    def screenshot(self, path: str, camera: int = 0) -> None:
+    def screenshot(self, path: str, camera: str) -> None:
+        if camera not in CAMERAS:
+            raise ValueError(f"unknown camera {camera!r}; available: {list(CAMERAS)}")
         if not self.headless:
-            self.sim.screenshot(path, camera)
+            self.sim.screenshot(path, CAMERAS[camera])
 
     def close(self) -> None:
         self.sim.close()

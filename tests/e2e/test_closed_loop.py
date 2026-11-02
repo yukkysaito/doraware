@@ -163,6 +163,18 @@ def test_road_lane_following(sid):
         assert waiting.sum() > 50                                   # stood > 1 s before the crossing
 
 
+def test_trajectory_planner_plugin_failure_stops_safely():
+    """A plugin that raises is reported as a planning ERROR; the node keeps publishing stop
+    trajectories, the vehicle stays still and the run ends with a verdict (no crash, no hang)."""
+    plugin = Path(__file__).parent / "plugins" / "broken_planner.py"
+    r = run_scenario("B2", OUT / "broken_planner", [f"planning.trajectory_planner.type={plugin}:BrokenPlanner"],
+                     False, 42, False, dataflow=REPO_ROOT / "dataflows" / "trajectory_planner.yml")
+    m = r["metrics"]
+    assert r["outcome"] == "rejected" and r["planning_status"] == "ERROR"
+    assert "model checkpoint missing" in r["planning_message"]
+    assert m["collision_count"] == 0 and m["max_speed"] < 0.01 and r["dora_exit"] in (0, "0")
+
+
 def test_solver_failure_safe_stop():
     r, m = _run("fault_solver", overrides=["fault_injection.solver_failure_after=6.0"], record=False)
     assert r["outcome"] in ("timeout", "stopped") and m["collision_count"] == 0

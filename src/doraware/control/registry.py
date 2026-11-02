@@ -28,10 +28,8 @@ CONTROLLERS: Registry[Controller] = Registry("controller", "doraware.controllers
 @CONTROLLERS.register("mpc")
 def _mpc(params: Dict[str, Any], cfg: Dict[str, Any], vehicle: VehicleParameters) -> Controller:
     from doraware.control.plugins.mpc.follower import TrajectoryFollower
-    return TrajectoryFollower(cfg, vehicle)
+    return TrajectoryFollower(cfg, vehicle, params)
 
 
 def make_controller(cfg: Dict[str, Any], vehicle: VehicleParameters) -> Controller:
-    section = cfg["control"]["controller"]
-    name = section["type"]
-    return CONTROLLERS.create(name, dict(section.get(name) or {}), cfg, vehicle)
+    return CONTROLLERS.create_from_section(cfg["control"]["controller"], cfg, vehicle)

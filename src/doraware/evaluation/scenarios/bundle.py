@@ -33,6 +33,7 @@ class ExpectedBehavior:
     max_planning_time: Optional[float] = None
     position_tolerance: float = 0.10         # planner goal tolerance of this scenario [m]
     yaw_tolerance: float = math.radians(2.0)
+    safety_margin: float = 0.1               # [m] clearance the plan promises (margin-violation metric)
     notes: str = ""
 
 

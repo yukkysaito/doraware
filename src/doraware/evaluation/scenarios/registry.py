@@ -1,9 +1,10 @@
 """Scenario sources, selected by ``evaluation.scenario_source``.
 
 A scenario source turns scenario ids into :class:`ScenarioBundle` objects and
-names suites of ids. Built-in sources live in ``evaluation/scenarios/``;
-separately installed packages register a factory ``() -> ScenarioSource`` under
-the ``doraware.scenario_sources`` entry-point group.
+names suites of ids. A factory is ``(params) -> ScenarioSource`` with
+``params`` = ``evaluation.<source>`` (``{}`` if absent). Built-in sources live
+in ``evaluation/scenarios/``; separately installed packages register under the
+``doraware.scenario_sources`` entry-point group.
 """
 from __future__ import annotations
 
@@ -25,16 +26,16 @@ SOURCES: Registry[ScenarioSource] = Registry("scenario source", "doraware.scenar
 
 
 @SOURCES.register("parking")
-def _parking() -> ScenarioSource:
+def _parking(params: Dict[str, Any]) -> ScenarioSource:
     from doraware.evaluation.scenarios.parking import ParkingScenarios
     return ParkingScenarios()
 
 
 @SOURCES.register("road")
-def _road() -> ScenarioSource:
+def _road(params: Dict[str, Any]) -> ScenarioSource:
     from doraware.evaluation.scenarios.road import RoadScenarios
     return RoadScenarios()
 
 
 def make_scenario_source(cfg: Dict[str, Any]) -> ScenarioSource:
-    return SOURCES.create(cfg["evaluation"]["scenario_source"])
+    return SOURCES.create_from_section(cfg["evaluation"], key="scenario_source")

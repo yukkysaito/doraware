@@ -45,7 +45,7 @@ the test strategy is in [`testing.md`](testing.md), and how to add packages is i
 
 | Node (dataflow id) | Package | Responsibility |
 |---|---|---|
-| `planner` | `doraware.planning` | Runs the configured path planner plugin on a `PlanningRequest` and returns a `PlanningResult` with a planner-agnostic `GeometricPath`. |
+| `planner` | `doraware.planning.path_planning` | Runs the configured path planner plugin on a `PlanningRequest` and returns a `PlanningResult` with a planner-agnostic `GeometricPath`. |
 | `trajectory_generator` | `doraware.planning.trajectory_generation` | Converts a `GeometricPath` into a time-parameterised profile (speed, jerk and steering-rate limits, stops at cusps), publishes fixed-step `Trajectory` windows at `planner_hz`, and revalidates collisions. |
 | `signal_decider` | `doraware.planning.signals` | Decides the turn indicator and hazard lights from the executable `Trajectory` (planner-agnostic) at `planner_hz` and publishes `VehicleSignalCommand`. |
 | `controller` | `doraware.control` | Runs the configured controller plugin (LTV-MPC) at `controller_hz`: tracks the `Trajectory`, manages gears and falls back safely. Outputs `ControlCommand` (acceleration, front-wheel angle, gear). |
@@ -71,8 +71,8 @@ src/doraware/
   interfaces/            message types per domain (common, vehicle, map, perception, planning, control, simulation, system) + Arrow codec
   core/                  config, clock, lockstep barrier, plugin registry, geometry, occupancy,
                          trajectory sampling, Dora node runtime (core/node.py)
-  planning/              planner node + registry.py (path planner plugins)
-    plugins/state_lattice/   State Lattice adapter and request policy
+  planning/
+    path_planning/           path planner node + registry.py, plugins/state_lattice (adapter, request policy)
     trajectory_generation/   path -> Trajectory node and algorithms
     trajectory_planning/     trajectory planner node + registry, plugins/path_pipeline, plugins/lane_follow
     signals/                 turn indicator / hazard light decision node
@@ -83,15 +83,19 @@ src/doraware/
   evaluation/            evaluator node, metrics, judge
     scenarios/               scenario manager node, ScenarioBundle, registry.py, sources: parking, road
     suite/                   runner (`doraware run`), reports, closed-loop regression
-  recording/             MCAP recorder node, replay
+  maps/                  map loaders (file formats -> LaneMap) + registry.py, plugins/yaml_lanes
+  recording/             MCAP recorder node, replay (a tool: it uses the simulation and evaluation packages)
   cli.py                 `doraware run | regression | replay`
 ```
 
 Conventions:
 
-* A component's Dora entry point is always `<package>/node.py`, referenced from the
-  dataflow as `-m doraware.<package>.node`. Only `node.py` and `core/node.py`
-  import Dora. The `NodeRuntime` name is the node id in the dataflow.
+* A Dora node's entry point is the `node.py` of its package (a component such as
+  `control/`, or a sub-component such as `planning/trajectory_generation/`),
+  referenced from the dataflow as `-m doraware.<package>.node`. Only `node.py` and
+  `core/node.py` import Dora. The `NodeRuntime` name is the node id in the dataflow.
+* `dataflows/closed_loop.yml` is the base dataflow; variants build on it
+  (`extends` / `remove` / `rewire`, composed and wiring-checked by the runner).
 * A component that hosts several algorithms has a `registry.py` and a
   `plugins/<name>/` directory. The plugin is chosen by a config key, its own
   parameters live under its name in the component's config section, and external
@@ -101,7 +105,8 @@ Conventions:
 
 | Extension | Registry / place | Selected by |
 |---|---|---|
-| path planner | `planning/registry.py` | `planning.planner.type` |
+| path planner | `planning/path_planning/registry.py` | `planning.path_planner.type` |
+| map loader (Lanelet2, OpenDRIVE, ...) | `maps/registry.py` | `load_lane_map(path, type)` in a scenario source |
 | trajectory-output planner | `planning/trajectory_planning/registry.py` | `planning.trajectory_planner.type` + `--dataflow dataflows/trajectory_planner.yml` |
 | controller | `control/registry.py` | `control.controller.type` |
 | simulator backend | `simulation/registry.py` | `simulation.backend` |
@@ -368,7 +373,7 @@ vehicle states and signal states are verified bit-identical to the recording).
   vehicle.steering_control_margin` (0.05 rad). Result on B1: lateral error 12.3 cm → 1.4 cm.
 * **Planner wall-clock limit.** The planner's deterministic budget is its node-expansion limit (product
   spec). Its wall-clock limit (default 20 s) made results depend on host load when many closed loops ran in
-  parallel; `planning.planner.state_lattice.base_config.max_planning_time` raises it to 120 s (the same knob as the upstream
+  parallel; `planning.path_planner.state_lattice.base_config.max_planning_time` raises it to 120 s (the same knob as the upstream
   `run_tests.py --time-limit`). Scenario overrides still take precedence; the original `max_time`
   expectations are still checked.
 * **Dora idle stop.** Dora 1.1 stops a dataflow after ~120 s without traffic; the scenario manager has a 5 s
@@ -379,7 +384,7 @@ vehicle states and signal states are verified bit-identical to the recording).
   car) cannot be met if the planner may itself end 0.10 m / 2.0° from the goal — in the first full random run
   six scenes failed exactly that way (plan end error = tolerance, controller error vs. the plan end
   0.5–2.8 cm / 0.2–1.9°). The planner's terminal tolerance is therefore configured to 0.05 m / 1.0°
-  (`planning.planner.state_lattice.base_config`), leaving 0.05 m / 1.0° for tracking. Acceptance thresholds are unchanged;
+  (`planning.path_planner.state_lattice.base_config`), leaving 0.05 m / 1.0° for tracking. Acceptance thresholds are unchanged;
   scenarios with their own tolerance settings (L-*) keep them and are judged with the documented rule in
   testing.md. The upstream planner test-suite is still run with upstream defaults.
   **Accuracy fallback:** a tighter tolerance can make a scene unsolvable within the planner's budget (N-030:

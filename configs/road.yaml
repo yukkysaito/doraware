@@ -6,14 +6,7 @@ dataflow: dataflows/trajectory_planner.yml
 
 planning:
   trajectory_planner:
-    type: lane_follow
-    lane_follow:
-      stop_margin: 2.0            # [m] stop this far before a blocking object
-      corridor_margin: 0.4        # [m] lateral margin of the corridor around the vehicle width
-      prediction_time: 1.0        # [s] also check where objects will be after this time
-      clear_time: 1.0             # [s] the corridor must be clear this long before continuing
-      comfort_deceleration: 1.0   # [m/s^2] minimum braking for a stop
-      lookahead: 12.0             # [m] extra look-ahead beyond the stopping distance
+    type: lane_follow             # parameters: planning.trajectory_planner.lane_follow in default.yaml
   trajectory_generation:
     max_forward_speed: 2.5        # [m/s] (the lanes' speed limit is 3 m/s; kinematic MPC domain)
     max_acceleration: 0.8

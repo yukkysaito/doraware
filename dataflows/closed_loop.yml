@@ -16,11 +16,11 @@ nodes:
       heartbeat: {source: dora/timer/secs/5, queue_size: 1}
       planner_diagnostics: {source: planner/diagnostics, queue_size: 100}
       planning_result: {source: planner/planning_result, queue_size: 10}
-    outputs: [scene, planning_request, scenario_info]
+    outputs: [scene, planning_request, scenario_info, occupancy_grid, lane_map]
 
   - id: planner
     path: ${PYTHON}
-    args: -m doraware.planning.node
+    args: -m doraware.planning.path_planning.node
     restart_policy: on-failure     # stateless per request; the scenario manager re-sends after a restart
     max_restarts: 2
     inputs:

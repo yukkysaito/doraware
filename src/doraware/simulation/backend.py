@@ -45,6 +45,7 @@ class VizFrame:
 
 class SimulatorBackend(Protocol):
     headless: bool
+    cameras: Sequence[str]                   # GUI camera names for screenshots (may be empty)
 
     def reset(self, scene: SimulationScene, seed: int) -> SimFrame:
         """Rebuild the world for ``scene`` (deterministically for a given seed)."""
@@ -55,7 +56,7 @@ class SimulatorBackend(Protocol):
     def send_viz(self, viz: VizFrame) -> None:
         """Update the GUI overlay (no-op when headless)."""
 
-    def screenshot(self, path: str, camera: int = 0) -> None:
-        """GUI only: save a rendered frame."""
+    def screenshot(self, path: str, camera: str) -> None:
+        """GUI only: save a rendered frame of the named camera."""
 
     def close(self) -> None: ...

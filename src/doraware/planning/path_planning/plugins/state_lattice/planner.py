@@ -1,6 +1,6 @@
 """State Lattice planner plugin: the adapter plus the request policy.
 
-``params`` is the ``planning.planner.state_lattice`` config section:
+``params`` is the ``planning.path_planner.state_lattice`` config section:
 
 * ``base_config``: planner parameters applied under the scenario's own
   ``planner_config`` (the scenario wins),
@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from doraware.interfaces import PlanningRequest, PlanningResult
-from doraware.planning.plugins.state_lattice.adapter import StateLatticeAdapter
-from doraware.planning.plugins.state_lattice.policy import plan_with_policy
+from doraware.planning.path_planning.plugins.state_lattice.adapter import StateLatticeAdapter
+from doraware.planning.path_planning.plugins.state_lattice.policy import plan_with_policy
 
 
 class StateLatticePlanner:

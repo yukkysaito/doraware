@@ -21,23 +21,23 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from doraware.core.trajectory import stop_trajectory
 from doraware.interfaces import (Gear, PerceivedObjects, PlanningRequest, PlanningResult, PlanningStatus,
                                  Trajectory, VehicleState, to_ns, to_sec)
 from doraware.planning.trajectory_generation.generator import TrajectoryGenerator
 from doraware.planning.trajectory_planning.plugins.lane_follow.route import DensePath, RouteError, route_centerline
 
-DEFAULTS = {"stop_margin": 2.0, "corridor_margin": 0.4, "prediction_time": 1.0, "clear_time": 1.0,
-            "comfort_deceleration": 1.0, "lookahead": 12.0}
+PARAMS = ("stop_margin", "corridor_margin", "prediction_time", "clear_time", "comfort_deceleration", "lookahead")
 
 
 class LaneFollow:
     inputs = {"objects": PerceivedObjects}
 
     def __init__(self, params: Dict[str, Any], cfg: Dict[str, Any]):
-        self.p = {**DEFAULTS, **{k: float(v) for k, v in params.items()}}
-        unknown = set(params) - set(DEFAULTS)
-        if unknown:
-            raise ValueError(f"lane_follow: unknown parameters {sorted(unknown)}")
+        unknown, missing = set(params) - set(PARAMS), set(PARAMS) - set(params)
+        if unknown or missing:     # values come from planning.trajectory_planner.lane_follow
+            raise ValueError(f"lane_follow: unknown parameters {sorted(unknown)}, missing {sorted(missing)}")
+        self.p = {k: float(params[k]) for k in PARAMS}
         self.timing = cfg["timing"]
         self.gen_cfg = dict(cfg["planning"]["trajectory_generation"])
         self.objects: Optional[PerceivedObjects] = None
@@ -167,5 +167,4 @@ class LaneFollow:
                           front_wheel_angle=np.arctan(wb * k), gear=np.full(n, int(Gear.DRIVE), np.int8))
 
     def _empty(self, t_ns: int) -> Trajectory:
-        return Trajectory(start_time=t_ns, time_step=float(self.timing["trajectory_time_step"]),
-                          valid_until=t_ns + to_ns(float(self.timing["trajectory_validity"])))
+        return stop_trajectory(t_ns, self.timing)

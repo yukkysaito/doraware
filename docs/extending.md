@@ -18,19 +18,27 @@ Plugin registries (all built on `doraware.core.registry.Registry`):
 
 | Registry | Config key | Entry-point group | Factory signature | Contract |
 |---|---|---|---|---|
-| `planning/registry.py` | `planning.planner.type` | `doraware.planners` | `(params, cfg)` | `PathPlanner.plan(PlanningRequest) -> PlanningResult` |
+| `planning/path_planning/registry.py` | `planning.path_planner.type` | `doraware.planners` | `(params, cfg)` | `PathPlanner.plan(PlanningRequest) -> PlanningResult` |
 | `planning/trajectory_planning/registry.py` | `planning.trajectory_planner.type` | `doraware.trajectory_planners` | `(params, cfg)` | `TrajectoryPlanner.plan(request, state, t)`, `.trajectory_at(state, t) -> Trajectory` |
 | `control/registry.py` | `control.controller.type` | `doraware.controllers` | `(params, cfg, vehicle)` | `Controller.on_trajectory(Trajectory)`, `.step(VehicleState, t_ns) -> (ControlCommand, ControlDebug)` |
 | `simulation/registry.py` | `simulation.backend` | `doraware.simulators` | `(params, cfg, *, physics_hz, log_path, gui)` | `SimulatorBackend` in `simulation/backend.py` |
-| `evaluation/scenarios/registry.py` | `evaluation.scenario_source` | `doraware.scenario_sources` | `()` | `ScenarioSource.suite(name, n_random)`, `.build(id, seed, cfg) -> ScenarioBundle` |
+| `evaluation/scenarios/registry.py` | `evaluation.scenario_source` | `doraware.scenario_sources` | `(params)` | `ScenarioSource.suite(name, n_random)`, `.build(id, seed, cfg) -> ScenarioBundle` |
+| `maps/registry.py` | argument of `load_lane_map(path, type)` | `doraware.map_loaders` | `(params)` | `MapLoader.load(path) -> LaneMap` |
 
-`params` is the plugin's own config section (for example `planning.planner.my_planner`,
+`params` is the plugin's own config section (for example `planning.path_planner.my_planner`,
 `{}` when absent) and `cfg` the full system config.
 
 Instead of a registered name, any `type` / `backend` key also accepts a location, which
 is handy while developing a plugin: `my_package.planner:MyPlanner` (importable module)
 or `/path/to/planner.py:MyPlanner` (a file), for example
-`--set planning.trajectory_planner.type=$PWD/my_planner.py:MyPlanner`.
+`--set planning.trajectory_planner.type=$PWD/my_planner.py:MyPlanner`. Such a plugin
+takes its parameters from a `params` key next to `type`.
+
+Configuration rules: unknown keys are an error in `--set` overrides and in overlay files
+(`--config`), except inside a plugin's own section, i.e. a key named after the selected
+plugin (or `params`) under a section that has `type` / `backend` / `scenario_source`.
+So `--set planning.path_planner.type=my_planner planning.path_planner.my_planner.step=0.5`
+works for a plugin installed from another package; the plugin validates its own keys.
 
 Rules that keep the platform modular:
 
@@ -50,14 +58,14 @@ opaque `planner_config` JSON) with one `PlanningResult` carrying a planner-agnos
 `GeometricPath` (x, y, yaw, curvature and gear per point). The existing trajectory
 generation, controller, signals and evaluation then work unchanged.
 
-1. Write the plugin in `src/doraware/planning/plugins/my_planner/planner.py`:
+1. Write the plugin in `src/doraware/planning/path_planning/plugins/my_planner/planner.py`:
 
    ```python
    from doraware.interfaces import GeometricPath, PlanningRequest, PlanningResult, PlanningStatus
 
    class MyPlanner:
-       def __init__(self, params: dict):
-           self.step = float(params.get("step", 0.5))
+       def __init__(self, params: dict, cfg: dict):     # own section, full system config
+           self.step = float(params["step"])
 
        def plan(self, request: PlanningRequest) -> PlanningResult:
            # Never raise: report failures through the status.
@@ -72,18 +80,18 @@ generation, controller, signals and evaluation then work unchanged.
    a cusp. Planner-specific statistics go into `details` (JSON), never into new
    message fields.
 
-2. Register it in `planning/registry.py`:
+2. Register it in `planning/path_planning/registry.py`:
 
    ```python
    @PLANNERS.register("my_planner")
    def _my_planner(params, cfg):
-       from doraware.planning.plugins.my_planner.planner import MyPlanner
-       return MyPlanner(params)
+       from doraware.planning.path_planning.plugins.my_planner.planner import MyPlanner
+       return MyPlanner(params, cfg)
    ```
 
-3. Add its parameters to `configs/default.yaml` under `planning.planner.my_planner`
-   and select it with `planning.planner.type: my_planner` (or per run:
-   `doraware run --scenario B2 --set planning.planner.type=my_planner`).
+3. Add its parameters to `configs/default.yaml` under `planning.path_planner.my_planner`
+   and select it with `planning.path_planner.type: my_planner` (or per run:
+   `doraware run --scenario B2 --set planning.path_planner.type=my_planner`).
 
 4. Add unit tests in `tests/unit/planning/test_my_planner_*.py` and run the
    closed-loop suites (see [testing.md](testing.md)).
@@ -158,7 +166,9 @@ plugin's `PlanningResult` and `trajectory_status` after each plan.
 
 3. Run it: `doraware run --scenario B2 --dataflow dataflows/trajectory_planner.yml
    --set planning.trajectory_planner.type=my_planner`. The recorder, the controller, the
-   signal decider and the evaluator work unchanged.
+   signal decider and the evaluator work unchanged. If `plan` or `trajectory_at` raises,
+   the node reports an ERROR planning result and publishes "stop" trajectories, so the
+   vehicle stops safely and the run is judged; Dora restarts the node on a crash.
 
 The built-in `path_pipeline` plugin (the path planner plus trajectory generation in
 one node) is the reference: an e2e test checks that it gives the same closed loop,
@@ -199,8 +209,10 @@ General recipe:
    The name must equal the node id in the dataflow. If the node runs on the sim
    clock and its consumers must see its output deterministically, publish on the
    ticks of a `RateClock` and let consumers wait with `core.lockstep.InputBarrier`.
-4. **Wiring.** Add the node to a dataflow in `dataflows/` (`args: -m doraware.<component>.node`)
-   and connect its outputs. Recording is automatic.
+4. **Wiring.** Add the node to `dataflows/closed_loop.yml` (`args: -m doraware.<component>.node`)
+   and connect its outputs. Variants such as `trajectory_planner.yml` build on it
+   (`extends` / `remove` / `rewire`), so they get the new node too. The runner checks
+   that every input reads an existing output, and recording is automatic.
 5. **Config.** Add a `<component>:` section to `configs/default.yaml`.
 6. **Tests.** Unit tests in `tests/unit/<component>/`; if it influences driving, an
    end-to-end case in `tests/e2e/`.
@@ -214,6 +226,10 @@ yaw rate in the map frame). The same message carries detections
 bridge publishes the simulated obstacles in this contract on
 `sim_bridge/ground_truth_objects` at `planner_hz` (`simulation/ground_truth.py`).
 
+The static maps are published as topics of their own by the scenario manager
+(`scenario_manager/occupancy_grid`, `scenario_manager/lane_map`), so a perception,
+localization or prediction node subscribes to them directly.
+
 1. Create `src/doraware/perception/` with your detector or tracker as plain Python and
    `perception/node.py` that publishes `PerceivedObjects` on an output `objects`,
    stamped with the sim time of the data it used.
@@ -224,7 +240,12 @@ bridge publishes the simulated obstacles in this contract on
    then draws the objects (outlines coloured by class, with ids) over the simulated
    world, so you can check them against the real obstacles.
 
-Today's planner plugin takes the occupancy grid of the `PlanningRequest` and does not
+Lane maps in other formats (Lanelet2, OpenDRIVE) need a map loader plugin
+(`maps/registry.py`, entry point `doraware.map_loaders`) that converts the file into a
+`LaneMap`; the built-in `yaml` loader (`maps/plugins/yaml_lanes.py`) documents a simple
+file format and is the reference. Scenario sources call `load_lane_map(path, type)`.
+
+Today's parking planner plugin takes the occupancy grid of the `PlanningRequest` and does not
 read objects; a planner that does subscribes to `objects` itself (for example as a
 trajectory planner plugin with its own node inputs).
 

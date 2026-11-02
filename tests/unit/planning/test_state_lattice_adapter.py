@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from doraware.interfaces import GeometricPath, Gear, OccupancyGrid, PlanningStatus
-from doraware.planning.plugins.state_lattice.adapter import (StateLatticeAdapter, parse_planner_config, to_planner_grid)
+from doraware.planning.path_planning.plugins.state_lattice.adapter import (StateLatticeAdapter, parse_planner_config, to_planner_grid)
 
 from helpers.scenario_request import request_of
 

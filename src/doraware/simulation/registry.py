@@ -24,7 +24,5 @@ def _godot(params: Dict[str, Any], cfg: Dict[str, Any], **kwargs) -> SimulatorBa
 
 def make_simulator(cfg: Dict[str, Any], *, physics_hz: float, log_path: Optional[str] = None,
                    gui: bool = False) -> SimulatorBackend:
-    section = cfg["simulation"]
-    name = section["backend"]
-    return SIMULATORS.create(name, dict(section.get(name) or {}), cfg, physics_hz=physics_hz, log_path=log_path,
-                             gui=gui)
+    return SIMULATORS.create_from_section(cfg["simulation"], cfg, key="backend", physics_hz=physics_hz,
+                                          log_path=log_path, gui=gui)

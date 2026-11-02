@@ -1,10 +1,11 @@
-"""The single place where the State Lattice planner repository is made importable.
+"""Third-party code vendored as git submodules under ``third_party/``.
 
-The planner (git submodule ``third_party/state_lattice_based_valet_parking``)
+The State Lattice planner (``third_party/state_lattice_based_valet_parking``)
 is a flat collection of top-level modules (``state_lattice``, ``vehicle``,
 ``trajectory``, ...) that import each other by bare name, so its directory
-has to be on ``sys.path``. The plugin adapter and the parking scenario source
-call :func:`ensure_planner_importable`.
+has to be on ``sys.path``. Two packages use it, the planner plugin and the
+parking scenario source (its test patterns), so the locator lives here in
+``core`` rather than in either of them.
 """
 from __future__ import annotations
 

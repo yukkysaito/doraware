@@ -143,6 +143,22 @@ class TrajectoryGenerator:
         """True once the profile (incl. the final stop) is over."""
         return self.profile is not None and (t_now_ns - self.plan_start_ns) * 1e-9 >= self.profile.duration
 
+    def status_report(self) -> Dict[str, Any]:
+        """The ``trajectory_status`` diagnostics values: :meth:`diagnostics` plus
+        ``trajectory_ok`` and, with a profile, ``plan_start_time`` / ``plan_duration``
+        [s, sim] (the evaluator ends the run after the plan)."""
+        info = self.diagnostics()
+        info["trajectory_ok"] = self.ok
+        if self.profile is not None:
+            info["plan_start_time"] = self.plan_start_ns * 1e-9
+            info["plan_duration"] = self.profile.duration
+        return info
+
+    @property
+    def unexpected_failure(self) -> bool:
+        """The planner succeeded but no trajectory could be made from its path."""
+        return not self.ok and self.planning_status == PlanningStatus.SUCCESS
+
     def diagnostics(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {"status": self.status.name, "planning_status": self.planning_status.name,
                              "message": self.message, "generation_time": self.generation_time}

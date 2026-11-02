@@ -1,7 +1,7 @@
 import json
 
 from doraware.interfaces import PlanningRequest, PlanningResult, PlanningStatus
-from doraware.planning.plugins.state_lattice.policy import plan_with_policy
+from doraware.planning.path_planning.plugins.state_lattice.policy import plan_with_policy
 
 
 class FakePlanner:
@@ -54,12 +54,12 @@ def test_planner_registry_builds_the_configured_plugin():
     import pytest
 
     from doraware.core.config import load_config
-    from doraware.planning.plugins.state_lattice.planner import StateLatticePlanner
-    from doraware.planning.registry import PLANNERS, make_planner
+    from doraware.planning.path_planning.plugins.state_lattice.planner import StateLatticePlanner
+    from doraware.planning.path_planning.registry import PLANNERS, make_planner
     cfg = load_config()
     p = make_planner(cfg)
     assert isinstance(p, StateLatticePlanner) and "state_lattice" in PLANNERS.names()
-    assert p.base_config == cfg["planning"]["planner"]["state_lattice"]["base_config"]
-    cfg["planning"]["planner"]["type"] = "nope"
+    assert p.base_config == cfg["planning"]["path_planner"]["state_lattice"]["base_config"]
+    cfg["planning"]["path_planner"]["type"] = "nope"
     with pytest.raises(ValueError, match="unknown planner 'nope'"):
         make_planner(cfg)

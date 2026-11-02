@@ -14,7 +14,7 @@ from typing import Optional
 import numpy as np
 
 from doraware.core.geometry import angle_diff, wrap_angle
-from doraware.interfaces import Gear, Trajectory, to_sec
+from doraware.interfaces import Gear, Trajectory, to_ns, to_sec
 
 STATIONARY_EPS = 1e-3
 
@@ -67,3 +67,10 @@ def sample(traj: Trajectory, t: float) -> Optional[ReferencePoint]:
                           wrap_angle(float(traj.yaw[i]) + w * angle_diff(float(traj.yaw[j]), float(traj.yaw[i]))),
                           lerp(traj.longitudinal_velocity), lerp(traj.longitudinal_acceleration),
                           lerp(traj.curvature), lerp(traj.front_wheel_angle), gear)
+
+
+def stop_trajectory(t_ns: int, timing) -> Trajectory:
+    """The "stop" trajectory at tick ``t_ns``: no points (consumers brake / hold),
+    sampling and validity from ``timing`` (trajectory_time_step / trajectory_validity)."""
+    return Trajectory(start_time=int(t_ns), time_step=float(timing["trajectory_time_step"]),
+                      valid_until=int(t_ns) + to_ns(float(timing["trajectory_validity"])))

@@ -28,7 +28,7 @@ import numpy as np
 from doraware.core.geometry import wrap_angle, wrap_angles
 from doraware.interfaces import (GeometricPath, Gear, Header, OccupancyGrid, PlanningRequest, PlanningResult,
                                    PlanningStatus, Pose2D, VehicleParameters)
-from doraware.planning.plugins.state_lattice.path import ensure_planner_importable
+from doraware.core.third_party import ensure_planner_importable
 
 ensure_planner_importable()
 from occupancy_grid import OccupancyGrid as PlannerGrid  # noqa: E402

@@ -1,7 +1,7 @@
 """Dora node: PlanningRequest -> PlanningResult (+ diagnostics).
 
-The planning algorithm is the plugin selected by ``planning.planner.type``
-(planning/registry.py); the node itself is planner-agnostic.
+The planning algorithm is the plugin selected by ``planning.path_planner.type``
+(planning/path_planning/registry.py); the node itself is planner-agnostic.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import os
 import time
 
 from doraware.interfaces import DiagnosticLevel, PlanningRequest, PlanningResult, PlanningStatus
-from doraware.planning.registry import make_planner
+from doraware.planning.path_planning.registry import make_planner
 from doraware.core.node import NodeRuntime
 
 

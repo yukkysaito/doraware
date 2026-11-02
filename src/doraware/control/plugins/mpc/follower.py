@@ -31,8 +31,10 @@ STANDSTILL_SPEED = 0.005   # [m/s] below this the car is considered stopped (bra
 
 
 class TrajectoryFollower:
-    def __init__(self, config: Dict[str, Any], vehicle_params: VehicleParameters):
-        self.params = ControllerParams.from_config(config, vehicle_params)
+    def __init__(self, config: Dict[str, Any], vehicle_params: VehicleParameters,
+                 params: Optional[Dict[str, Any]] = None):
+        """``params``: the controller's own section (default: ``control.controller.mpc``)."""
+        self.params = ControllerParams.from_config(config, vehicle_params, params)
         self.vehicle = vehicle_params
         self.mpc = LtvMpc(self.params.mpc)
         self.gear = GearManager(self.params.gear_change_speed)

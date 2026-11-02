@@ -1,14 +1,14 @@
-"""Planner plugins, selected by ``planning.planner.type``.
+"""Planner plugins, selected by ``planning.path_planner.type``.
 
 A planner plugin is a factory ``(params, cfg) -> PathPlanner``: ``params`` is
-the plugin's own config section ``planning.planner.<type>`` (``{}`` if absent)
+the plugin's own config section ``planning.path_planner.<type>`` (``{}`` if absent)
 and ``cfg`` the full system config. Built-in plugins live in
-``planning/plugins/<name>/`` and are registered below; separately installed
+``planning/path_planning/plugins/<name>/`` and are registered below; separately installed
 packages register under the ``doraware.planners`` entry-point group.
 
 Planners that output a time-based trajectory directly (for example learned
-planners) are not plugins of this node; they are their own planning node that
-publishes ``Trajectory`` (see docs/extending.md).
+planners) are trajectory planner plugins instead
+(``planning/trajectory_planning/registry.py``).
 """
 from __future__ import annotations
 
@@ -30,12 +30,10 @@ PLANNERS: Registry[PathPlanner] = Registry("planner", "doraware.planners")
 
 @PLANNERS.register("state_lattice")
 def _state_lattice(params: Dict[str, Any], cfg: Dict[str, Any]) -> PathPlanner:
-    from doraware.planning.plugins.state_lattice.planner import StateLatticePlanner
+    from doraware.planning.path_planning.plugins.state_lattice.planner import StateLatticePlanner
     return StateLatticePlanner(params)
 
 
 def make_planner(cfg: Dict[str, Any]) -> PathPlanner:
-    """Instantiate the planner selected by ``cfg["planning"]["planner"]["type"]``."""
-    section = cfg["planning"]["planner"]
-    name = section["type"]
-    return PLANNERS.create(name, dict(section.get(name) or {}), cfg)
+    """Instantiate the planner selected by ``cfg["planning"]["path_planner"]["type"]``."""
+    return PLANNERS.create_from_section(cfg["planning"]["path_planner"], cfg)

@@ -22,7 +22,6 @@ from doraware.simulation.coordinator import StepCoordinator
 from doraware.simulation.ground_truth import scene_objects
 from doraware.simulation.registry import make_simulator
 
-CAMERAS = {"top": 0, "chase": 1, "free": 2, "overview": 3}    # GUI cameras for screenshots
 INPUTS = {"scene": SimulationScene, "control_command": ControlCommand, "scenario_done": ScenarioDone,
           "trajectory": Trajectory, "control_debug": ControlDebug, "planning_result": PlanningResult,
           "vehicle_signal_command": VehicleSignalCommand, "objects": PerceivedObjects,
@@ -70,10 +69,7 @@ class Bridge:
         self.request: Optional[PlanningRequest] = None
         self.lanes_sent = False
         self.shots = sorted(float(x) for x in (cfg["simulation"].get("screenshot_times") or []))
-        self.shot_cameras = list(cfg["simulation"].get("screenshot_cameras") or ["top", "chase"])
-        unknown = [c for c in self.shot_cameras if c not in CAMERAS]
-        if unknown:
-            raise ValueError(f"simulation.screenshot_cameras: unknown {unknown}; use {sorted(CAMERAS)}")
+        self.shot_cameras = list(cfg["simulation"].get("screenshot_cameras") or [])   # checked by the backend
 
     # ---------------------------------------------------------- events
     def handle(self, ev) -> None:
@@ -246,7 +242,7 @@ class Bridge:
             ts = self.shots.pop(0)
             for name in self.shot_cameras:
                 path = os.path.join(self.rt.run_dir or ".", f"screenshot_{ts:05.1f}s_{name}.png")
-                self.sim.screenshot(path, CAMERAS[name])
+                self.sim.screenshot(path, name)
 
     # ---------------------------------------------------------- main loop
     def run(self) -> None:
@@ -260,6 +256,9 @@ class Bridge:
         self.sim = make_simulator(self.rt.cfg, physics_hz=self.coord.physics_hz, gui=self.gui,
                                   log_path=os.path.join(self.rt.run_dir or ".", "simulator.log"))
         try:
+            unknown = [c for c in self.shot_cameras if c not in self.sim.cameras]
+            if self.shots and unknown:
+                raise ValueError(f"simulation.screenshot_cameras: unknown {unknown}; available {list(self.sim.cameras)}")
             self.frame = self.sim.reset(self.scene, self.seed)
             self.publish()
             wall0 = time.monotonic()

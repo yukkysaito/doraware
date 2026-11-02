@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Optional
 
+from doraware.core.trajectory import stop_trajectory
 from doraware.core.clock import RateClock
 from doraware.core.node import NodeRuntime
-from doraware.interfaces import (DiagnosticLevel, PlanningRequest, PlanningResult, Trajectory, VehicleState,
-                                 to_ns, to_sec)
+from doraware.interfaces import (DiagnosticLevel, PlanningRequest, PlanningResult, VehicleState,
+                                 to_sec)
 from doraware.planning.trajectory_generation.generator import TrajectoryGenerator
 
 INPUTS = {"planning_request": PlanningRequest, "planning_result": PlanningResult, "vehicle_state": VehicleState}
@@ -72,19 +73,12 @@ def main() -> None:
             pending = None
         if gen is None:
             continue
-        traj = gen.trajectory_at(t_ns)
-        if traj is None:
-            traj = Trajectory(start_time=t_ns, time_step=float(timing["trajectory_time_step"]),
-                              valid_until=t_ns + to_ns(float(timing["trajectory_validity"])))
+        traj = gen.trajectory_at(t_ns) or stop_trajectory(t_ns, timing)
         traj.header = rt.header(t_ns, "trajectory")
         rt.send("trajectory", traj)
         if not status_sent and gen.has_result:
-            info = gen.diagnostics()
-            info["trajectory_ok"] = gen.ok
-            if gen.profile is not None:
-                info["plan_start_time"] = gen.plan_start_ns * 1e-9
-                info["plan_duration"] = gen.profile.duration
-            level = DiagnosticLevel.OK if gen.ok or not gen.planning_status == 1 else DiagnosticLevel.ERROR
+            info = gen.status_report()
+            level = DiagnosticLevel.ERROR if gen.unexpected_failure else DiagnosticLevel.OK
             rt.diagnose(t_ns, level, str(info.get("message", "")), output="trajectory_status",
                         **{k: v for k, v in info.items() if k != "message"})
             status_sent = True

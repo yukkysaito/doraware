@@ -93,15 +93,16 @@ Screenshots for documentation: `--set "simulation.screenshot_times=[5.0]" "simul
 
 | You want to add | Where | Selected by |
 |---|---|---|
-| a path planner | `planning/plugins/<name>/` + `planning/registry.py` | `planning.planner.type` |
+| a path planner | `planning/path_planning/plugins/<name>/` + `planning/path_planning/registry.py` | `planning.path_planner.type` |
 | a trajectory-output planner (e.g. Diffusion Planner) | `planning/trajectory_planning/plugins/<name>/` + its `registry.py` | `planning.trajectory_planner.type`, run with `--dataflow dataflows/trajectory_planner.yml` |
 | a controller | `control/plugins/<name>/` + `control/registry.py` | `control.controller.type` |
 | a simulator backend | `simulation/plugins/<name>/` + `simulation/registry.py` | `simulation.backend` |
 | a scenario source | `evaluation/scenarios/` + its `registry.py` | `evaluation.scenario_source` |
+| a map loader (Lanelet2, OpenDRIVE, …) | `maps/plugins/<name>/` + `maps/registry.py` | used by scenario sources |
 | a component (perception, localization, …) | `src/doraware/<component>/` + `interfaces/<domain>.py` | a dataflow |
 
 Plugins in separate pip packages register through entry points (`doraware.planners`,
-`doraware.trajectory_planners`, `doraware.controllers`, `doraware.simulators`, `doraware.scenario_sources`). The step-by-step guide with
+`doraware.trajectory_planners`, `doraware.controllers`, `doraware.map_loaders`, `doraware.simulators`, `doraware.scenario_sources`). The step-by-step guide with
 code skeletons is [docs/extending.md](docs/extending.md).
 
 ## Repository layout
@@ -110,11 +111,12 @@ code skeletons is [docs/extending.md](docs/extending.md).
 src/doraware/
   interfaces/      typed messages per domain + Arrow codec            ← the contract between components
   core/            config, clock, lockstep barrier, plugin registry, geometry, Dora node runtime
-  planning/        planner node + registry, plugins/state_lattice, trajectory_generation/,
-                   trajectory_planning/ (node + registry for trajectory-output planners), signals/
+  planning/        path_planning/ (node + registry, plugins/state_lattice), trajectory_generation/,
+                   trajectory_planning/ (node + registry, plugins/path_pipeline, lane_follow), signals/
   control/         controller node + registry, gear manager, delay compensation, plugins/mpc
   simulation/      sim bridge node, lockstep coordinator, backend contract + registry, plugins/godot
   evaluation/      evaluator node, metrics, judge, scenarios/ (sources + registry), suite/ (runner, regression)
+  maps/            map loaders (file formats -> LaneMap) + registry
   recording/       MCAP recorder node, replay
   cli.py           the `doraware` command
 dataflows/         Dora dataflows: closed_loop.yml (path planner), trajectory_planner.yml
@@ -124,8 +126,8 @@ tests/             unit/<package>/, integration (Godot), e2e (closed loop), regr
 third_party/       State Lattice planner (git submodule)
 ```
 
-A component's Dora entry point is always `src/doraware/<component>/node.py`. Everything else in the
-package is plain Python that can be tested without Dora.
+Every Dora node is the `node.py` of its package (`control/node.py`, `planning/trajectory_planning/node.py`,
+...). Everything else is plain Python that can be tested without Dora.
 
 ## Documentation
 

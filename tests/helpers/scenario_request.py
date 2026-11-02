@@ -6,7 +6,7 @@ import json
 import numpy as np
 
 from doraware.interfaces import OccupancyGrid, PlanningRequest, Pose2D, VehicleParameters
-from doraware.planning.plugins.state_lattice.path import ensure_planner_importable
+from doraware.core.third_party import ensure_planner_importable
 
 ensure_planner_importable()
 from scenarios import build_scenario  # noqa: E402

@@ -1,4 +1,4 @@
-"""``path_pipeline``: the configured path planner (``planning.planner``) followed
+"""``path_pipeline``: the configured path planner (``planning.path_planner``) followed
 by trajectory generation (``planning.trajectory_generation``), in one process.
 
 It is the reference trajectory planner: it produces exactly what the default
@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from doraware.interfaces import (PlanningRequest, PlanningResult, PlanningStatus, Trajectory, VehicleState,
-                                 to_ns)
-from doraware.planning.registry import make_planner
+from doraware.core.trajectory import stop_trajectory
+from doraware.interfaces import (PlanningRequest, PlanningResult, PlanningStatus, Trajectory, VehicleState)
+from doraware.planning.path_planning.registry import make_planner
 from doraware.planning.trajectory_generation.generator import TrajectoryGenerator
 
 
@@ -36,17 +36,7 @@ class PathPipeline:
 
     def trajectory_at(self, state: VehicleState, t_ns: int) -> Trajectory:
         traj = self.gen.trajectory_at(t_ns) if self.gen is not None else None
-        if traj is None:
-            traj = Trajectory(start_time=t_ns, time_step=float(self.timing["trajectory_time_step"]),
-                              valid_until=t_ns + to_ns(float(self.timing["trajectory_validity"])))
-        return traj
+        return traj or stop_trajectory(t_ns, self.timing)
 
     def diagnostics(self) -> Dict[str, Any]:
-        if self.gen is None:
-            return {}
-        info = self.gen.diagnostics()
-        info["trajectory_ok"] = self.gen.ok
-        if self.gen.profile is not None:
-            info["plan_start_time"] = self.gen.plan_start_ns * 1e-9
-            info["plan_duration"] = self.gen.profile.duration
-        return info
+        return {} if self.gen is None else self.gen.status_report()

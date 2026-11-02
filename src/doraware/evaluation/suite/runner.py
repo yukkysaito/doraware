@@ -41,10 +41,56 @@ def recorder_node(nodes: List[Dict]) -> Dict:
     return {"id": RECORDER_ID, "path": sys.executable, "args": "-m doraware.recording.node", "inputs": inputs}
 
 
+def compose_dataflow(path: Path) -> Dict:
+    """Load a dataflow file. A file may build on another one:
+
+        extends: closed_loop.yml                 # relative to this file
+        remove: [planner, trajectory_generator]  # node ids dropped from the base
+        rewire: {planner: trajectory_planner}    # sources "planner/<out>" -> "trajectory_planner/<out>"
+        nodes: [...]                             # nodes added
+
+    so a variant stays a small delta and components added to the base reach it too."""
+    path = Path(path)
+    flow = yaml.safe_load(path.read_text().replace("${PYTHON}", sys.executable)) or {}
+    if "extends" not in flow:
+        return flow
+    base = compose_dataflow(path.parent / flow["extends"])
+    drop, rewire = set(flow.get("remove") or []), dict(flow.get("rewire") or {})
+    nodes = []
+    for n in base["nodes"]:
+        if n["id"] in drop:
+            continue
+        for name, src in list((n.get("inputs") or {}).items()):
+            s = src["source"] if isinstance(src, dict) else src
+            node_id, _, out = s.partition("/")
+            if node_id in rewire:
+                s = f"{rewire[node_id]}/{out}"
+                n["inputs"][name] = dict(src, source=s) if isinstance(src, dict) else s
+        nodes.append(n)
+    return {"nodes": nodes + list(flow.get("nodes") or [])}
+
+
+def check_dataflow(flow: Dict) -> None:
+    """Every input must come from an existing output (or a Dora timer)."""
+    outputs = {(n["id"], o) for n in flow["nodes"] for o in (n.get("outputs") or [])}
+    ids = [n["id"] for n in flow["nodes"]]
+    if len(ids) != len(set(ids)):
+        raise ValueError(f"dataflow: duplicate node ids {sorted(i for i in ids if ids.count(i) > 1)}")
+    for n in flow["nodes"]:
+        for name, src in (n.get("inputs") or {}).items():
+            s = src["source"] if isinstance(src, dict) else src
+            if s.startswith("dora/"):
+                continue
+            node_id, _, out = s.partition("/")
+            if (node_id, out) not in outputs:
+                raise ValueError(f"dataflow: input {n['id']}/{name} reads {s!r}, which no node outputs")
+
+
 def render_dataflow(record: bool, template: Path = DEFAULT_DATAFLOW) -> str:
-    """Dataflow YAML for one run: the interpreter filled in and, if ``record``,
-    the recorder appended."""
-    flow = yaml.safe_load(Path(template).read_text().replace("${PYTHON}", sys.executable))
+    """Dataflow YAML for one run: composed (``extends``), checked, the interpreter
+    filled in and, if ``record``, the recorder appended."""
+    flow = compose_dataflow(Path(template))
+    check_dataflow(flow)
     nodes = [n for n in flow["nodes"] if n["id"] != RECORDER_ID]
     if record:
         nodes.append(recorder_node(nodes))

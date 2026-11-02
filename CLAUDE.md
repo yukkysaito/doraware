@@ -26,12 +26,13 @@ or when reference numbers may move. After that, update `docs/evaluation.md`.
 * The layout and extension points are in `docs/architecture.md` §3 and `docs/extending.md`. Keep them,
   the README layout and "Extending" blocks, and the code in sync.
 * Components: `src/doraware/<component>/`. Algorithms are plain Python (no Dora imports), unit-tested in
-  `tests/unit/<component>/`. The Dora entry point is `<component>/node.py`; shared node helpers are
+  `tests/unit/<component>/`. Every Dora node is the `node.py` of its (sub-)package; shared node helpers are
   `core/node.py` (runtime), `core/clock.py` (`RateClock`) and `core/lockstep.py` (`InputBarrier`).
 * Plugins: `<component>/plugins/<name>/`, registered in `<component>/registry.py` (built on
-  `core/registry.py`, which also loads entry points). Today: planning (state_lattice),
+  `core/registry.py`, which also loads entry points; create plugins with `create_from_section`). Today:
+  planning/path_planning (state_lattice),
   planning/trajectory_planning (path_pipeline, lane_follow), control (mpc), simulation (godot),
-  evaluation/scenarios (parking, road). Setups are config overlays (`configs/road.yaml`,
+  evaluation/scenarios (parking, road), maps (yaml). Setups are config overlays (`configs/road.yaml`,
   `doraware run --config`).
 * Dataflows: `dataflows/closed_loop.yml` (default) and `dataflows/trajectory_planner.yml`; `evaluation/suite/runner.py` renders it per run and appends the
   recorder (subscribed to every output). Node ids must equal the `NodeRuntime` names.
@@ -46,9 +47,9 @@ or when reference numbers may move. After that, update `docs/evaluation.md`.
 * Regression baseline: `tests/regression/baseline.json`. Update it only for an intentional,
   explained change.
 * Planner: git submodule `third_party/state_lattice_based_valet_parking`. Do not patch it in place;
-  adapt in `planning/plugins/state_lattice/` or contribute upstream.
+  adapt in `planning/path_planning/plugins/state_lattice/` or contribute upstream.
 * Platform direction: a modular AD platform (Diffusion Planner, localization and perception are planned).
-  Do not add parking-specific logic outside `planning/plugins/state_lattice/` and
+  Do not add parking-specific logic outside `planning/path_planning/plugins/state_lattice/` and
   `evaluation/scenarios/parking.py`.
 * No CHANGELOG (maintainer decision). Behaviour changes go into the docs and the commit messages.
 

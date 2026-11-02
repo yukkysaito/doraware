@@ -32,8 +32,7 @@ def main() -> None:
 
     def setup():
         nonlocal metrics, judge
-        cfgp = json.loads(request.planner_config or "{}")
-        margin = float(cfgp.get("safety_margin", 0.1))
+        margin = float(info["expected"].get("safety_margin", 0.1))
         metrics = ClosedLoopMetrics(request.map, scene.vehicle, (request.goal.x, request.goal.y, request.goal.yaw),
                                     safety_margin=margin)
         judge = ScenarioJudge(info["expected"], ecfg, metrics)

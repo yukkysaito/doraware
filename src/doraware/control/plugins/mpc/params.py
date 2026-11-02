@@ -73,10 +73,11 @@ class ControllerParams:
         return self.acceleration_dead_time + (self.acceleration_time_constant if self.lag_compensation else 0.0)
 
     @staticmethod
-    def from_config(cfg: Dict[str, Any], vehicle: VehicleParameters) -> "ControllerParams":
-        """``cfg`` is the full system config (configs/default.yaml layout); the
-        controller's own parameters are ``control.controller.mpc``."""
-        c = m = cfg["control"]["controller"].get("mpc") or {}
+    def from_config(cfg: Dict[str, Any], vehicle: VehicleParameters,
+                    params: Optional[Dict[str, Any]] = None) -> "ControllerParams":
+        """``cfg`` is the full system config (configs/default.yaml layout);
+        ``params`` the controller's own section (default ``control.controller.mpc``)."""
+        c = m = params if params is not None else (cfg["control"]["controller"].get("mpc") or {})
         w = MpcWeights(**{k: float(v) for k, v in (m.get("weights", {}) or {}).items()})
         mpc = MpcParams(
             horizon_steps=int(m.get("horizon_steps", 30)), dt=float(m.get("dt", 0.1)), weights=w,

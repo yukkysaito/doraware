@@ -44,3 +44,33 @@ def test_plugins_can_be_named_by_location(tmp_path):
         r.create(f"{tmp_path / 'missing.py'}:Planner")
     with pytest.raises(ValueError, match="cannot load widget"):
         r.create("collections:NoSuchThing")
+
+
+def test_create_from_section_passes_the_plugin_parameters(tmp_path):
+    r = Registry("widget")
+    r.register("a", lambda params, x: (params, x))
+    assert r.create_from_section({"type": "a", "a": {"k": 1}}, 5) == ({"k": 1}, 5)
+    assert r.create_from_section({"backend": "a"}, 5, key="backend") == ({}, 5)
+    f = tmp_path / "w.py"
+    f.write_text("def make(params, x):\n    return params, x\n")
+    # a plugin given by location takes its parameters from `params`
+    assert r.create_from_section({"type": f"{f}:make", "params": {"k": 2}}, 7) == ({"k": 2}, 7)
+
+
+def test_config_accepts_plugin_sections_but_rejects_typos(tmp_path):
+    from doraware.core.config import apply_overrides, load_config
+    cfg = load_config()
+    out = apply_overrides(cfg, ["planning.path_planner.type=my_planner", "planning.path_planner.my_planner.step=0.5",
+                                "planning.path_planner.params.a.b=1"])
+    assert out["planning"]["path_planner"]["my_planner"] == {"step": 0.5}
+    with pytest.raises(KeyError):
+        apply_overrides(cfg, ["planning.path_planner.other_planner.step=1"])     # not the selected plugin
+    with pytest.raises(KeyError):
+        apply_overrides(cfg, ["timing.controler_hz=20"])                          # typo
+    ok = tmp_path / "ok.yaml"
+    ok.write_text("control:\n  controller:\n    type: pid\n    pid: {kp: 2.0}\n")
+    assert load_config(path=ok)["control"]["controller"]["pid"] == {"kp": 2.0}
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("timing:\n  plannr_hz: 5\n")
+    with pytest.raises(KeyError, match="timing.plannr_hz"):
+        load_config(path=bad)

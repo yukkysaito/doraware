@@ -2,7 +2,7 @@
 #
 # Layout: one section per component package (planning, control, simulation,
 # evaluation, recording) plus the system-wide `timing` and `vehicle` sections.
-# A plugin's own parameters live under its name (planning.planner.<type>,
+# A plugin's own parameters live under its name (planning.path_planner.<type>,
 # control.controller.<type>, simulation.<backend>), so adding a plugin never
 # touches another plugin's settings.
 #
@@ -65,8 +65,8 @@ vehicle:                       # dynamics and actuation (geometry comes from the
     noise_seed: 0
 
 planning:
-  planner:
-    type: state_lattice          # a name in planning/registry.py or a `doraware.planners` entry point
+  path_planner:
+    type: state_lattice          # a name in planning/path_planning/registry.py or a `doraware.planners` entry point
     state_lattice:
       # Base planner parameters under the scenario's own overrides (the scenario wins).
       # The planner's deterministic budget is its node-expansion limit (product spec);
@@ -87,7 +87,14 @@ planning:
   trajectory_planner:          # used by dataflows/trajectory_planner.yml (planners that output trajectories)
     type: path_pipeline          # a name in planning/trajectory_planning/registry.py or a
                                  # `doraware.trajectory_planners` entry point
-    path_pipeline: {}            # planning.planner + planning.trajectory_generation in one node
+    path_pipeline: {}            # planning.path_planner + planning.trajectory_generation in one node
+    lane_follow:                 # route centreline, stops for objects (configs/road.yaml)
+      stop_margin: 2.0           # [m] stop this far before a blocking object
+      corridor_margin: 0.4       # [m] lateral margin of the corridor around the vehicle width
+      prediction_time: 1.0       # [s] also check where objects will be after this time
+      clear_time: 1.0            # [s] the corridor must be clear this long before continuing
+      comfort_deceleration: 1.0  # [m/s^2] minimum braking for a stop
+      lookahead: 12.0            # [m] extra look-ahead beyond the stopping distance
 
   trajectory_generation:       # GeometricPath -> time-based Trajectory
     max_forward_speed: 1.5       # [m/s]
@@ -151,7 +158,7 @@ control:
 simulation:
   backend: godot                 # a name in simulation/registry.py or a `doraware.simulators` entry point
   screenshot_times: []           # [s, sim] GUI only: save PNGs into the run directory at these times
-  screenshot_cameras: [top, chase]   # cameras per screenshot time: top, chase, free, overview
+  screenshot_cameras: [top, chase]   # cameras per screenshot time (names of the backend; godot: top, chase, free, overview)
   godot:
     binary: tools/godot
     project_dir: simulator/godot

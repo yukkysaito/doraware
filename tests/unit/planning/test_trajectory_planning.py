@@ -5,7 +5,7 @@ import pytest
 
 from doraware.core.config import load_config
 from doraware.interfaces import Header, Pose, VehicleState, to_ns
-from doraware.planning.registry import make_planner
+from doraware.planning.path_planning.registry import make_planner
 from doraware.planning.trajectory_generation.generator import TrajectoryGenerator
 from doraware.planning.trajectory_planning.plugins.path_pipeline.planner import PathPipeline
 from doraware.planning.trajectory_planning.registry import TRAJECTORY_PLANNERS, make_trajectory_planner

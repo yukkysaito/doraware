@@ -6,7 +6,7 @@ import pytest
 
 from doraware.core.config import load_config
 from doraware.interfaces import Gear, to_ns
-from doraware.planning.plugins.state_lattice.adapter import StateLatticeAdapter
+from doraware.planning.path_planning.plugins.state_lattice.adapter import StateLatticeAdapter
 from doraware.planning.trajectory_generation.generator import TrajectoryGenerator, TrajectoryStatus
 
 from helpers.path_fixtures import check_limits, sample_profile

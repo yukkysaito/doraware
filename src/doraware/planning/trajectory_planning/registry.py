@@ -60,6 +60,4 @@ def _lane_follow(params: Dict[str, Any], cfg: Dict[str, Any]) -> TrajectoryPlann
 
 
 def make_trajectory_planner(cfg: Dict[str, Any]) -> TrajectoryPlanner:
-    section = cfg["planning"]["trajectory_planner"]
-    name = section["type"]
-    return TRAJECTORY_PLANNERS.create(name, dict(section.get(name) or {}), cfg)
+    return TRAJECTORY_PLANNERS.create_from_section(cfg["planning"]["trajectory_planner"], cfg)

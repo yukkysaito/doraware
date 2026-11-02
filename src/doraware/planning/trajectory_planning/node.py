@@ -13,10 +13,12 @@ from __future__ import annotations
 import time
 from typing import Optional
 
+from doraware.core.trajectory import stop_trajectory
 from doraware.core.clock import RateClock
 from doraware.core.lockstep import InputBarrier
 from doraware.core.node import NodeRuntime
-from doraware.interfaces import DiagnosticLevel, PlanningRequest, PlanningStatus, VehicleState, to_sec
+from doraware.interfaces import (DiagnosticLevel, PlanningRequest, PlanningResult, PlanningStatus, Trajectory,
+                                 VehicleState, to_sec)
 from doraware.planning.trajectory_planning.registry import make_trajectory_planner
 
 INPUTS = {"planning_request": PlanningRequest, "vehicle_state": VehicleState}
@@ -34,6 +36,7 @@ def main() -> None:
     barriers = [InputBarrier(rt, name, lambda msg, n=name: planner.on_input(n, msg)) for name in extra]
     pending: Optional[PlanningRequest] = None
     planned = False
+    failed = False          # the plugin raised: publish "stop" (empty trajectories) from then on
     gave_up = False
     if rt.node.is_restart():
         rt.diagnose(0, DiagnosticLevel.WARN, "trajectory planner restarted", restarted=True,
@@ -68,7 +71,13 @@ def main() -> None:
                 pending = rt.decode(got)
         if pending is not None:
             w0 = time.perf_counter()
-            res = planner.plan(pending, state, t_ns)
+            try:
+                res = planner.plan(pending, state, t_ns)
+            except Exception as exc:  # a plugin failure is a planning failure, never a silent crash
+                rt.log.exception("trajectory planner plan() failed")
+                res = PlanningResult(request_id=pending.request_id, status=PlanningStatus.ERROR,
+                                     message=f"{type(exc).__name__}: {exc}", goal=pending.goal)
+                failed = True
             wall = time.perf_counter() - w0
             if res is not None:
                 res.header = rt.header(pending.header.stamp, "planning_result")
@@ -76,13 +85,21 @@ def main() -> None:
                 level = DiagnosticLevel.OK if res.status == PlanningStatus.SUCCESS else DiagnosticLevel.WARN
                 rt.diagnose(t_ns, level, f"planning {res.status.name}: {res.message[:200]}",
                             status=res.status.name, planning_time=res.planning_time, wall_time=wall)
-            info = planner.diagnostics()
+            info = {} if failed else planner.diagnostics()
             ok = bool(info.get("trajectory_ok", True))
             rt.diagnose(t_ns, DiagnosticLevel.OK if ok or res is None or not res.success else DiagnosticLevel.ERROR,
                         str(info.get("message", "")), output="trajectory_status",
                         **{k: v for k, v in info.items() if k != "message"})
             pending, planned = None, True
-        traj = planner.trajectory_at(state, t_ns)
+        try:
+            traj = Trajectory() if failed else planner.trajectory_at(state, t_ns)
+        except Exception as exc:  # stop safely (empty trajectory) and report
+            if not failed:
+                rt.log.exception("trajectory planner trajectory_at() failed")
+                rt.diagnose(t_ns, DiagnosticLevel.ERROR, f"trajectory planner failed: {type(exc).__name__}: {exc}")
+            failed, traj = True, Trajectory()
+        if len(traj) == 0:
+            traj = stop_trajectory(t_ns, timing)
         traj.header = rt.header(t_ns, "trajectory")
         rt.send("trajectory", traj)
 
