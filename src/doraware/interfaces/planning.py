@@ -6,8 +6,8 @@ from enum import IntEnum
 
 import numpy as np
 
-from doraware.interfaces.common import F64Array, Header, I8Array, Pose2D, to_ns
-from doraware.interfaces.map import OccupancyGrid
+from doraware.interfaces.common import F64Array, Header, I8Array, I64Array, Pose2D, to_ns
+from doraware.interfaces.map import LaneMap, OccupancyGrid
 from doraware.interfaces.vehicle import VehicleParameters
 
 
@@ -25,8 +25,19 @@ class PlanningStatus(IntEnum):
 
 # ============================================================ planning
 @dataclass
+class Route:
+    """The lanes to drive (``LaneMap`` lane ids), in order from the start lane to
+    the lane that contains the goal. Empty = no route (free-space planning)."""
+    lane_ids: I64Array = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+
+
+@dataclass
 class PlanningRequest:
-    """``planner_config`` is an opaque planner-specific JSON object string."""
+    """A planning problem: start and goal (base_link poses), the occupancy grid of
+    the static environment, and, where roads exist, the lane map and the route.
+    ``planner_config`` is an opaque planner-specific JSON object string. Planners
+    use what they need: free-space planners the grid, lane-based planners the
+    lanes and the route."""
     header: Header = field(default_factory=Header)
     request_id: str = ""
     start: Pose2D = field(default_factory=Pose2D)
@@ -34,6 +45,8 @@ class PlanningRequest:
     map: OccupancyGrid = field(default_factory=OccupancyGrid)
     vehicle: VehicleParameters = field(default_factory=VehicleParameters)
     planner_config: str = "{}"
+    lanes: LaneMap = field(default_factory=LaneMap)
+    route: Route = field(default_factory=Route)
 
 
 @dataclass

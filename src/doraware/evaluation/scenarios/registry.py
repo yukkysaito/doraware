@@ -30,5 +30,11 @@ def _parking() -> ScenarioSource:
     return ParkingScenarios()
 
 
+@SOURCES.register("road")
+def _road() -> ScenarioSource:
+    from doraware.evaluation.scenarios.road import RoadScenarios
+    return RoadScenarios()
+
+
 def make_scenario_source(cfg: Dict[str, Any]) -> ScenarioSource:
     return SOURCES.create(cfg["evaluation"]["scenario_source"])

@@ -74,14 +74,14 @@ src/doraware/
   planning/              planner node + registry.py (path planner plugins)
     plugins/state_lattice/   State Lattice adapter and request policy
     trajectory_generation/   path -> Trajectory node and algorithms
-    trajectory_planning/     trajectory planner node + registry, plugins/path_pipeline
+    trajectory_planning/     trajectory planner node + registry, plugins/path_pipeline, plugins/lane_follow
     signals/                 turn indicator / hazard light decision node
   control/               controller node + registry.py, gear manager, delay compensation
     plugins/mpc/             LTV-MPC trajectory follower: model, reference, QP, modes
   simulation/            sim bridge node, lockstep coordinator, ground truth, backend contract + registry.py
     plugins/godot/           Godot backend: process, protocol, frame conversion
   evaluation/            evaluator node, metrics, judge
-    scenarios/               scenario manager node, ScenarioBundle, registry.py, parking source
+    scenarios/               scenario manager node, ScenarioBundle, registry.py, sources: parking, road
     suite/                   runner (`doraware run`), reports, closed-loop regression
   recording/             MCAP recorder node, replay
   cli.py                 `doraware run | regression | replay`
@@ -129,7 +129,9 @@ The schema is derived from the dataclass annotations, and the metadata carries
 | `PerceivedObjects` | per object (parallel arrays): `object_id` (stable while tracked, −1 = untracked), `classification` (`ObjectClass`) + probability, existence probability, box centre / yaw / size, velocity and yaw rate in map |
 | `VehicleParameters` | Autoware VehicleInfo geometry + mass, CoG, yaw inertia, friction, actuator limits |
 | `OccupancyGrid` | row-major `data[iy*width+ix]`, resolution, origin |
-| `PlanningRequest` | start, goal (`Pose2D`), map, vehicle, opaque `planner_config` JSON |
+| `LaneMap` | format-agnostic vectorized lanes: per lane id and speed limit; per centreline sample the lane index, centre and left/right boundary points; lane relations (successor, left/right neighbour) |
+| `Route` | lane ids to drive, start lane to goal lane |
+| `PlanningRequest` | start, goal (`Pose2D`), occupancy grid, vehicle, opaque `planner_config` JSON, and (on roads) `lanes` and `route` |
 | `PlanningResult` | `status` (`PlanningStatus`), message, planning time, `GeometricPath` (x, y, yaw, curvature, gear) |
 | `SimulationScene` | map bounds, obstacle boxes, initial pose, goal pose (for display), vehicle, scripted actors (id, `ObjectClass`, box size, timed waypoints; linear interpolation by sim time) |
 | `SimulationStatus` | state, step count, physics dt, collision count/objects, command timeouts, longest lockstep wait (wall) |
@@ -320,6 +322,9 @@ Details fixed by the implementation (`simulator/godot`, `doraware.simulation.plu
 | `evaluation` | acceptance criteria, terminal conditions, `scenario_source` |
 | `recording`, `fault_injection` | MCAP on/off; failures injected by tests |
 
+The top-level `dataflow` key names the dataflow a run uses. A setup is a YAML overlay
+on the defaults (`configs/road.yaml`: road scenarios, the `trajectory_planner` dataflow
+with the `lane_follow` plugin), selected with `doraware run --config`.
 Nodes read the file named by `$DORAWARE_CONFIG`; runs overlay dotted overrides
 (`--set timing.controller_hz=20`), and unknown keys are an error. Scenario-specific
 data (vehicle geometry, map, start, goal, planner overrides) comes from the

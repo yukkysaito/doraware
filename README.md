@@ -38,13 +38,14 @@ verified in closed loop on a simulated vehicle, reproducibly.
 
 | Area | Available now | Planned |
 |---|---|---|
-| Planning | State Lattice planner plugin (parking), path → time-based trajectory generation, turn indicator / hazard light decision | Diffusion Planner and other trajectory-output planners, lane driving |
+| Planning | State Lattice planner plugin (parking), path → time-based trajectory generation, trajectory planner node for trajectory-output planners with a lane-following reference plugin (lanes, route, stops for objects), turn indicator / hazard light decision | Diffusion Planner and other learned planners, lane changes, interaction with traffic |
 | Control | LTV-MPC plugin (OSQP): acceleration and front-wheel steering, gear manager, delay compensation, safe fallback | |
 | Localization / Perception | perception message contract (`PerceivedObjects`); the simulator publishes ground truth in it, and the GUI draws any perception output | localization, perception, sensor simulation |
 | Simulation | Godot 4.7 backend: planar vehicle with tire model, actuator delays and limits, gears, turn indicators and hazard lights, collisions, scripted traffic participants, ground truth objects, deterministic lockstep, 3D GUI | richer scenes, reactive traffic, sensors |
 | Evaluation | closed-loop scenario suites, regression baseline, MCAP recording, replay | |
 
-With the parking planner, all 107 fixed and 100 random scenarios pass in closed loop. The median goal
+With the parking planner, all 107 fixed and 100 random scenarios pass in closed loop, and the
+lane-following reference planner passes the four road scenarios (`configs/road.yaml`). The median goal
 error is 7 mm / 0.19° and there are no collisions. See [docs/evaluation.md](docs/evaluation.md).
 
 ## Quick start
@@ -59,7 +60,8 @@ source .venv/bin/activate
 
 doraware run --scenario B2 --gui --set timing.realtime_factor=1.0   # watch one parking scenario
 doraware run --scenario B2                                         # headless, as fast as possible
-doraware run --suite all --random 100 --workers 8                  # every scenario
+doraware run --suite all --random 100 --workers 8                  # every parking scenario
+doraware run --config configs/road.yaml --scenario R3 --gui        # lane following, a pedestrian crosses
 doraware regression                                                # compare with tests/regression/baseline.json
 doraware replay states results/runs/<run>/<scenario>               # offline metrics + plot from a recording
 ```
@@ -81,6 +83,9 @@ instrument cluster with speed, gear, acceleration, steering angle, turn indicato
 | mouse wheel | zoom (top, overview), distance (chase), speed (free fly) |
 | `W` `A` `S` `D` `Q` `E`, right mouse button | move and look (free fly) |
 | `G` / `H` | toggle the grid / the legend and help |
+
+Lanes are drawn as road surface (route lanes lighter) with boundary and centre lines, scripted traffic
+participants as cars or pedestrians, and the output of a perception node as class-coloured boxes.
 
 Screenshots for documentation: `--set "simulation.screenshot_times=[5.0]" "simulation.screenshot_cameras=[overview]"`.
 

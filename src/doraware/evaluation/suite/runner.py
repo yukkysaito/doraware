@@ -2,6 +2,7 @@
 optionally many in parallel, with structured results.
 
     doraware run --scenario B2 [--gui] [--set timing.controller_hz=20]
+    doraware run --config configs/road.yaml --suite all        # another setup (config overlay)
     doraware run --suite fixed --random 100 --workers 6 --out results/runs/full
 
 Every run directory contains config.yaml, dataflow.yml, dora.log, simulator.log,
@@ -21,7 +22,7 @@ from typing import Dict, List, Optional
 
 import yaml
 
-from doraware.core.config import REPO_ROOT, load_config
+from doraware.core.config import DEFAULT_CONFIG, REPO_ROOT, load_config
 from doraware.evaluation.scenarios.registry import make_scenario_source
 
 DEFAULT_DATAFLOW = REPO_ROOT / "dataflows" / "closed_loop.yml"
@@ -90,10 +91,13 @@ def _kill(proc: subprocess.Popen) -> None:
 
 def run_scenario(scenario_id: str, out_dir: Path, overrides: List[str] = (), gui: bool = False, seed: int = 42,
                  record: Optional[bool] = None, wall_timeout: float = 1800.0,
-                 dataflow: Path = DEFAULT_DATAFLOW) -> Dict:
+                 dataflow: Optional[Path] = None, config: Optional[Path] = None) -> Dict:
+    """One closed-loop run. ``config``: a YAML overlay on configs/default.yaml;
+    ``dataflow``: overrides the config's ``dataflow`` key."""
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
-    cfg = load_config(overrides=overrides)
+    cfg = load_config(path=config or DEFAULT_CONFIG, overrides=overrides)
+    dataflow = Path(dataflow) if dataflow else REPO_ROOT / cfg["dataflow"]
     if record is None:
         record = bool(cfg["recording"]["enabled"])
     (out_dir / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
@@ -131,10 +135,11 @@ def run_scenario(scenario_id: str, out_dir: Path, overrides: List[str] = (), gui
 
 def run_suite(ids: List[str], out_root: Path, overrides: List[str], workers: int, seed: int,
               record: Optional[bool], progress=lambda s: print(s, flush=True),
-              dataflow: Path = DEFAULT_DATAFLOW) -> List[Dict]:
+              dataflow: Optional[Path] = None, config: Optional[Path] = None) -> List[Dict]:
     results: List[Dict] = []
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(run_scenario, sid, out_root / sid, overrides, False, seed, record, dataflow=dataflow): sid
+        futs = {ex.submit(run_scenario, sid, out_root / sid, overrides, False, seed, record, dataflow=dataflow,
+                          config=config): sid
                 for sid in ids}
         for i, fut in enumerate(cf.as_completed(futs), 1):
             sid = futs[fut]
@@ -169,16 +174,19 @@ def main(argv=None) -> int:
     ap.add_argument("--gui", action="store_true")
     ap.add_argument("--no-record", action="store_true")
     ap.add_argument("--set", nargs="*", default=[], help="config overrides key.path=value")
-    ap.add_argument("--dataflow", default=str(DEFAULT_DATAFLOW), help="dataflow YAML (default: %(default)s)")
+    ap.add_argument("--config", default=None, help="YAML overlay on configs/default.yaml (e.g. configs/road.yaml)")
+    ap.add_argument("--dataflow", default=None, help="dataflow YAML (default: the config's `dataflow`)")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
-    cfg = load_config(overrides=a.set)   # fail fast on typos
-    dataflow = Path(a.dataflow).resolve()
+    config = Path(a.config).resolve() if a.config else None
+    cfg = load_config(path=config or DEFAULT_CONFIG, overrides=a.set)   # fail fast on typos
+    dataflow = Path(a.dataflow).resolve() if a.dataflow else None
     stamp = time.strftime("%Y%m%d_%H%M%S")
     out = Path(a.out or REPO_ROOT / "results" / "runs" / stamp)
     record = False if a.no_record else None
     if a.scenario and len(a.scenario) == 1 and not a.suite:
-        r = run_scenario(a.scenario[0], out / a.scenario[0], a.set, a.gui, a.seed, record, dataflow=dataflow)
+        r = run_scenario(a.scenario[0], out / a.scenario[0], a.set, a.gui, a.seed, record, dataflow=dataflow,
+                         config=config)
         print(json.dumps({k: r.get(k) for k in ("scenario_id", "passed", "outcome", "reasons", "run_dir")},
                          indent=2))
         m = r.get("metrics") or {}
@@ -189,7 +197,7 @@ def main(argv=None) -> int:
                 print(f"  {k:<26} {m[k]}")
         return 0 if r.get("passed") else 1
     ids = select_ids(a.suite or "fixed", a.random, a.scenario, cfg)
-    results = run_suite(ids, out, a.set, a.workers, a.seed, record, dataflow=dataflow)
+    results = run_suite(ids, out, a.set, a.workers, a.seed, record, dataflow=dataflow, config=config)
     from doraware.evaluation.suite.report import write_reports
     summary = write_reports(results, out, a.set)
     print(json.dumps(summary["totals"], indent=2))

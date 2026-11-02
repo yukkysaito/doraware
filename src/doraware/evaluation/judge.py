@@ -35,6 +35,9 @@ STATUS_NAMES = {  # PlanningStatus -> planner status strings of the original tes
 }
 
 
+GOAL_REST_RADIUS = 0.5   # [m] an online planner's final stop this close to the goal ends the run
+
+
 @dataclass
 class Verdict:
     done: bool = False
@@ -100,7 +103,9 @@ class ScenarioJudge:
     def _motion_over(self, t: float) -> bool:
         """The planned motion is over: past the announced plan end, or, for planners
         that announce none (online trajectory planners), the newest trajectory has no
-        moving point from ``t`` on."""
+        moving point from ``t`` on and comes to rest at the goal (within
+        ``GOAL_REST_RADIUS``; the acceptance criteria are checked afterwards). A stop
+        elsewhere, e.g. waiting for a pedestrian, is not the end of the run."""
         if self.plan_end_time is not None:
             return t >= self.plan_end_time
         traj = self.m.traj
@@ -108,7 +113,10 @@ class ScenarioJudge:
             return False
         i0 = max(int(np.ceil((t - to_sec(traj.start_time)) / traj.time_step - 1e-9)), 0)
         v = np.abs(np.asarray(traj.longitudinal_velocity[i0:]))
-        return len(v) > 0 and bool(np.all(v < STATIONARY_EPS))
+        if len(v) == 0 or not np.all(v < STATIONARY_EPS):
+            return False
+        gx, gy, _ = self.m.goal
+        return math.hypot(float(traj.x[-1]) - gx, float(traj.y[-1]) - gy) <= GOAL_REST_RADIUS
 
     # ------------------------------------------------------------- verdict
     def _finish(self, outcome: str, reasons: List[str]) -> Verdict:

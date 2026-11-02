@@ -30,8 +30,9 @@ or when reference numbers may move. After that, update `docs/evaluation.md`.
   `core/node.py` (runtime), `core/clock.py` (`RateClock`) and `core/lockstep.py` (`InputBarrier`).
 * Plugins: `<component>/plugins/<name>/`, registered in `<component>/registry.py` (built on
   `core/registry.py`, which also loads entry points). Today: planning (state_lattice),
-  planning/trajectory_planning (path_pipeline), control (mpc), simulation (godot), evaluation/scenarios
-  (parking).
+  planning/trajectory_planning (path_pipeline, lane_follow), control (mpc), simulation (godot),
+  evaluation/scenarios (parking, road). Setups are config overlays (`configs/road.yaml`,
+  `doraware run --config`).
 * Dataflows: `dataflows/closed_loop.yml` (default) and `dataflows/trajectory_planner.yml`; `evaluation/suite/runner.py` renders it per run and appends the
   recorder (subscribed to every output). Node ids must equal the `NodeRuntime` names.
 * Messages: `src/doraware/interfaces/<domain>.py`. Every dataclass with a `header` is a topic message.

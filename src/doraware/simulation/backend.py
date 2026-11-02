@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Protocol, Sequence, Tuple
 
-from doraware.interfaces import (ControlCommand, PerceivedObjects, SimulationScene, VehicleSignalCommand,
+from doraware.interfaces import (ControlCommand, LaneMap, PerceivedObjects, SimulationScene, VehicleSignalCommand,
                                  VehicleSignalStatus, VehicleState)
 
 Polyline = Sequence[Tuple[float, float]]
@@ -38,6 +38,8 @@ class VizFrame:
     path: Optional[Polyline] = None          # full planned path
     path_gear: Sequence[int] = ()            # Gear per path point (direction colouring)
     objects: Optional[PerceivedObjects] = None   # perception output to draw (None = unchanged)
+    lanes: Optional[LaneMap] = None          # lane map to draw (None = unchanged)
+    route_lane_ids: Sequence[int] = ()       # lanes of the route (highlighted)
     info: Dict[str, object] = field(default_factory=dict)
 
 

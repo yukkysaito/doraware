@@ -150,6 +150,19 @@ def test_trajectory_planner_extra_inputs_arrive_in_lockstep():
     assert all(stamp == t and n > 0 for t, stamp, n in log), log[:5]
 
 
+@pytest.mark.parametrize("sid", ["R1", "R2", "R3", "R4"])
+def test_road_lane_following(sid):
+    """Lanes, route and objects end to end: the lane_follow trajectory planner (configs/road.yaml)
+    reaches the goal on every road scenario; in R3 it stops for the crossing pedestrian."""
+    r = run_scenario(sid, OUT / f"road_{sid}", [], False, 42, True, config=REPO_ROOT / "configs" / "road.yaml")
+    m = r["metrics"]
+    _assert_goal(r, m)
+    if sid == "R3":
+        v, x = _states(r["run_dir"])[:, 3], _states(r["run_dir"])[:, 1]
+        waiting = (np.abs(v) < 0.01) & (x > 10.0) & (x < 30.0)
+        assert waiting.sum() > 50                                   # stood > 1 s before the crossing
+
+
 def test_solver_failure_safe_stop():
     r, m = _run("fault_solver", overrides=["fault_injection.solver_failure_after=6.0"], record=False)
     assert r["outcome"] in ("timeout", "stopped") and m["collision_count"] == 0

@@ -53,6 +53,12 @@ def _path_pipeline(params: Dict[str, Any], cfg: Dict[str, Any]) -> TrajectoryPla
     return PathPipeline(params, cfg)
 
 
+@TRAJECTORY_PLANNERS.register("lane_follow")
+def _lane_follow(params: Dict[str, Any], cfg: Dict[str, Any]) -> TrajectoryPlanner:
+    from doraware.planning.trajectory_planning.plugins.lane_follow.planner import LaneFollow
+    return LaneFollow(params, cfg)
+
+
 def make_trajectory_planner(cfg: Dict[str, Any]) -> TrajectoryPlanner:
     section = cfg["planning"]["trajectory_planner"]
     name = section["type"]

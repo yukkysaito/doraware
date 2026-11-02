@@ -104,6 +104,40 @@ class Batch:
 			for j in n:
 				ribbon([a + d * (float(j) / n), a + d * ((float(j) + 0.5) / n)], line, y, color)
 
+	## Filled band between two polylines with the same number of points (e.g. the
+	## left and right boundary of a lane) at height `y`.
+	func band(left: Array, right: Array, y: float, color: Color) -> void:
+		for i in mini(left.size(), right.size()) - 1:
+			var l0 := to_xz(left[i])
+			var l1 := to_xz(left[i + 1])
+			var r0 := to_xz(right[i])
+			var r1 := to_xz(right[i + 1])
+			_quad(Vector3(l0.x, y, l0.y), Vector3(r0.x, y, r0.y), Vector3(l1.x, y, l1.y), Vector3(r1.x, y, r1.y),
+				color, color)
+
+	## Dashed polyline: `dash` metres painted, `gap` metres free.
+	func dashed(pts: Array, width: float, y: float, color: Color, dash := 1.5, gap := 1.5) -> void:
+		var seg: Array = []
+		var acc := 0.0
+		var painting := true
+		for i in pts.size():
+			var p := to_xz(pts[i])
+			if i > 0:
+				acc += p.distance_to(to_xz(pts[i - 1]))
+			if painting:
+				seg.append(p)
+			if painting and acc >= dash:
+				ribbon(seg, width, y, color)
+				seg = []
+				painting = false
+				acc = 0.0
+			elif not painting and acc >= gap:
+				seg = [p]
+				painting = true
+				acc = 0.0
+		if painting:
+			ribbon(seg, width, y, color)
+
 	func _quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, c0: Color, c1: Color) -> void:
 		verts.append_array(PackedVector3Array([a, b, c, b, d, c]))
 		cols.append_array(PackedColorArray([c0, c0, c1, c0, c1, c1]))

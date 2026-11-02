@@ -52,6 +52,7 @@ nodes:
     args: -m doraware.simulation.node
     inputs:
       scene: {source: scenario_manager/scene, queue_size: 10}
+      planning_request: {source: scenario_manager/planning_request, queue_size: 10}   # GUI: lanes, route
       control_command: {source: controller/control_command, queue_size: 100000}
       scenario_done: {source: evaluator/scenario_done, queue_size: 10}
       trajectory: {source: trajectory_planner/trajectory, queue_size: 100000}

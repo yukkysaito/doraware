@@ -16,7 +16,7 @@ from typing import Callable, Dict, Optional
 from doraware.core.node import NodeRuntime
 from doraware.interfaces import (ControlCommand, ControlDebug, DiagnosticLevel, Gear, PlanningResult,
                                  ScenarioDone, SimulationScene, SimulationState, SimulationStatus, Trajectory,
-                                 PerceivedObjects, VehicleSignalCommand)
+                                 PerceivedObjects, PlanningRequest, VehicleSignalCommand)
 from doraware.simulation.backend import SimFrame, SimulatorBackend, VizFrame
 from doraware.simulation.coordinator import StepCoordinator
 from doraware.simulation.ground_truth import scene_objects
@@ -25,7 +25,8 @@ from doraware.simulation.registry import make_simulator
 CAMERAS = {"top": 0, "chase": 1, "free": 2, "overview": 3}    # GUI cameras for screenshots
 INPUTS = {"scene": SimulationScene, "control_command": ControlCommand, "scenario_done": ScenarioDone,
           "trajectory": Trajectory, "control_debug": ControlDebug, "planning_result": PlanningResult,
-          "vehicle_signal_command": VehicleSignalCommand, "objects": PerceivedObjects}
+          "vehicle_signal_command": VehicleSignalCommand, "objects": PerceivedObjects,
+          "planning_request": PlanningRequest}
 
 
 class Bridge:
@@ -66,6 +67,8 @@ class Bridge:
         self.plan: Optional[PlanningResult] = None
         self.plan_sent = False
         self.objects: Optional[PerceivedObjects] = None
+        self.request: Optional[PlanningRequest] = None
+        self.lanes_sent = False
         self.shots = sorted(float(x) for x in (cfg["simulation"].get("screenshot_times") or []))
         self.shot_cameras = list(cfg["simulation"].get("screenshot_cameras") or ["top", "chase"])
         unknown = [c for c in self.shot_cameras if c not in CAMERAS]
@@ -97,6 +100,8 @@ class Bridge:
             self.plan, self.plan_sent = msg, False
         elif iid == "scene":
             self.scene = msg
+        elif iid == "planning_request":
+            self.request, self.lanes_sent = msg, False   # GUI: lane map and route
         elif iid == "objects":
             self.objects = msg       # perception output (optional input): drawn in the GUI
 
@@ -223,7 +228,11 @@ class Bridge:
         if d is not None:
             info.update(mode=d.mode, solver=d.solver_status, solve_ms=d.solve_time * 1e3,
                         lateral_error=d.lateral_error, heading_error=d.heading_error)
+        lanes = None
+        if self.request is not None and not self.lanes_sent:
+            lanes, self.lanes_sent = self.request.lanes, True
         self.sim.send_viz(VizFrame(
+            lanes=lanes, route_lane_ids=self.request.route.lane_ids.tolist() if self.request is not None else [],
             planned=list(zip(self.traj.x.tolist(), self.traj.y.tolist())) if self.traj is not None else [],
             predicted=list(zip(d.predicted_x.tolist(), d.predicted_y.tolist())) if d is not None else [],
             path=path, path_gear=path_gear, info=info, objects=self.objects))

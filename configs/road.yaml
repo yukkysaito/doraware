@@ -1,0 +1,25 @@
+# Lane following on roads (overlay on default.yaml):
+#   doraware run --config configs/road.yaml --scenario R3 --gui
+# A trajectory planner (lane_follow) gets the lane map and the route from the planning
+# request and the objects (simulator ground truth) as a declared input.
+dataflow: dataflows/trajectory_planner.yml
+
+planning:
+  trajectory_planner:
+    type: lane_follow
+    lane_follow:
+      stop_margin: 2.0            # [m] stop this far before a blocking object
+      corridor_margin: 0.4        # [m] lateral margin of the corridor around the vehicle width
+      prediction_time: 1.0        # [s] also check where objects will be after this time
+      clear_time: 1.0             # [s] the corridor must be clear this long before continuing
+      comfort_deceleration: 1.0   # [m/s^2] minimum braking for a stop
+      lookahead: 12.0             # [m] extra look-ahead beyond the stopping distance
+  trajectory_generation:
+    max_forward_speed: 2.5        # [m/s] (the lanes' speed limit is 3 m/s; kinematic MPC domain)
+    max_acceleration: 0.8
+    max_deceleration: 0.8
+  signals:
+    policy: turn_indicators       # driving among traffic: indicate turns, hazard only without a plan
+
+evaluation:
+  scenario_source: road

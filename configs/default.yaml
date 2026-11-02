@@ -9,6 +9,8 @@
 # Every node reads this file (path in $DORAWARE_CONFIG); a run may overlay
 # overrides (`doraware run --set key.path=value`). Unknown keys are an error.
 
+dataflow: dataflows/closed_loop.yml   # which components run (doraware run --dataflow overrides it)
+
 timing:
   physics_hz: 100.0            # simulator fixed physics step
   controller_hz: 50.0          # control command rate (sim time)

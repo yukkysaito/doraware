@@ -149,9 +149,10 @@ class GodotSimulator:
         ``signals`` (turn indicator / hazard lights) is latched; None keeps the current one."""
         return self.request(gf.step_request(n, accel, steer, gear, emergency, signals))
 
-    def send_viz(self, planned=(), predicted=(), path=None, info=None, path_gear=(), objects=None) -> None:
-        """Map-frame (x, y) polylines, HUD values and perceived objects; no reply."""
-        self._send(gf.viz_request(planned, predicted, path, info, path_gear, objects))
+    def send_viz(self, planned=(), predicted=(), path=None, info=None, path_gear=(), objects=None, lanes=None,
+                 route_lane_ids=()) -> None:
+        """Map-frame (x, y) polylines, HUD values, perceived objects and lanes; no reply."""
+        self._send(gf.viz_request(planned, predicted, path, info, path_gear, objects, lanes, route_lane_ids))
 
     def screenshot(self, path: str, camera: int = 0) -> None:
         """GUI only: save an upcoming rendered frame (camera 0 top, 1 chase, 2 free); no reply."""

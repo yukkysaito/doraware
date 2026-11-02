@@ -42,7 +42,8 @@ class GodotBackend:
     def send_viz(self, viz: VizFrame) -> None:
         if not self.headless:
             self.sim.send_viz(planned=viz.planned, predicted=viz.predicted, path=viz.path, info=viz.info,
-                              path_gear=viz.path_gear, objects=viz.objects)
+                              path_gear=viz.path_gear, objects=viz.objects, lanes=viz.lanes,
+                              route_lane_ids=viz.route_lane_ids)
 
     def screenshot(self, path: str, camera: int = 0) -> None:
         if not self.headless:

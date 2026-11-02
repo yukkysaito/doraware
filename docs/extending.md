@@ -170,8 +170,13 @@ the number of direction changes). If `diagnostics()` provides `plan_start_time` 
 `plan_duration`, the run ends after the plan; otherwise it ends when the newest
 trajectory no longer moves and the vehicle has settled.
 
-Not available yet, and needed for a full learned-planner setup: object, lane and route
-messages (add them as described below) and other traffic participants in the simulator.
+Inputs a learned planner typically needs are available: the lane map and the route in
+the `PlanningRequest` (`LaneMap`, `Route`), the objects (`PerceivedObjects`, ground
+truth until perception exists) as a declared input, and the ego state. The
+`lane_follow` plugin (`plugins/lane_follow/`) is a complete small example that uses all
+three; `configs/road.yaml` runs it on the `road` scenarios (lanes, route, a crossing
+pedestrian, an oncoming car). Lane maps from Lanelet2 or OpenDRIVE need a loader that
+converts them into `LaneMap`; none exists yet.
 
 ## Add a component (perception, localization, prediction, ...)
 
@@ -243,7 +248,9 @@ bridge keeps owning time and the lockstep.
 
 ## Add a scenario source
 
-Implement `ScenarioSource` (`evaluation/scenarios/registry.py`). `build` returns a
+Implement `ScenarioSource` (`evaluation/scenarios/registry.py`); `parking.py` (from the
+planner's test patterns) and `road.py` (built in code, with lanes, a route and traffic)
+are the references. `build` returns a
 `ScenarioBundle` (`evaluation/scenarios/bundle.py`): the `SimulationScene`, the
 `PlanningRequest` and the `ExpectedBehavior` the judge checks. Traffic goes into the
 scene as scripted actors (`actor_*` and `waypoint_*` arrays: class, size and timed

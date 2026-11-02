@@ -21,7 +21,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from doraware.core.geometry import wrap_angle
-from doraware.interfaces import (Gear, Header, PerceivedObjects, Pose, SimulationScene, TurnIndicator, Twist,
+from doraware.interfaces import (Gear, Header, LaneMap, PerceivedObjects, Pose, SimulationScene, TurnIndicator, Twist,
                                  Vector3,
                                  VehicleParameters, VehicleSignalCommand, VehicleSignalStatus, VehicleState,
                                  to_ns)
@@ -189,6 +189,19 @@ def state_to_vehicle_state(state: Dict, header: Optional[Header] = None) -> Vehi
     )
 
 
+def lane_polylines(lanes: LaneMap, route_lane_ids=()) -> List[Dict]:
+    """Lane map (map) -> Godot polylines per lane ``{id, center, left, right, route}``."""
+    route = {int(i) for i in route_lane_ids}
+    out = []
+    for i in range(len(lanes)):
+        sel = np.asarray(lanes.point_lane) == i
+        pts = lambda xs, ys: map_to_godot_polyline(zip(np.asarray(xs)[sel], np.asarray(ys)[sel]))  # noqa: E731
+        out.append({"id": int(lanes.lane_id[i]), "center": pts(lanes.x, lanes.y),
+                    "left": pts(lanes.left_x, lanes.left_y), "right": pts(lanes.right_x, lanes.right_y),
+                    "route": int(lanes.lane_id[i]) in route})
+    return out
+
+
 def object_boxes(objects: PerceivedObjects) -> List[Dict[str, float]]:
     """Perceived objects (map) -> Godot boxes ``{x, z, rot_y, y, length, width, height, cls, id}``."""
     out = []
@@ -223,7 +236,8 @@ def step_request(n: int, accel: float, steer: float, gear: int, emergency: bool 
 
 
 def viz_request(planned=(), predicted=(), path=None, info: Optional[Dict] = None, path_gear=(),
-                objects: Optional[PerceivedObjects] = None) -> Dict:
+                objects: Optional[PerceivedObjects] = None, lanes: Optional[LaneMap] = None,
+                route_lane_ids=()) -> Dict:
     """``viz`` request from map-frame (x, y) polylines and HUD values (``info``:
     label -> number / string / bool). ``path_gear``: Gear per path point.
     ``objects``: perceived objects to draw (boxes in the Godot frame)."""
@@ -236,6 +250,8 @@ def viz_request(planned=(), predicted=(), path=None, info: Optional[Dict] = None
         msg["path_gear"] = [int(g) for g in path_gear]
     if objects is not None:
         msg["objects"] = object_boxes(objects)
+    if lanes is not None:
+        msg["lanes"] = lane_polylines(lanes, route_lane_ids)
     return msg
 
 

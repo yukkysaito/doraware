@@ -35,6 +35,7 @@ var _traj_mesh := ArrayMesh.new()
 var _pred_mesh := ArrayMesh.new()
 var _trail_mesh := ArrayMesh.new()
 var _objects_mesh := ArrayMesh.new()
+var _lanes_mesh := ArrayMesh.new()
 var _object_labels := Node3D.new()
 var _trail: Array[Vector2] = []
 var _overlay_mat := D.vertex_color_mat()
@@ -46,7 +47,7 @@ var _shot_restore := -1
 func _ready() -> void:
 	add_child(world)
 	world.add_child(_object_labels)
-	for m in [_path_mesh, _trail_mesh, _traj_mesh, _pred_mesh, _objects_mesh]:
+	for m in [_lanes_mesh, _path_mesh, _trail_mesh, _traj_mesh, _pred_mesh, _objects_mesh]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -77,7 +78,7 @@ func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D, actors: Arr
 		_build_actor_visual(a)
 	_trail.clear()
 	info = {}
-	for m in [_path_mesh, _traj_mesh, _pred_mesh, _trail_mesh, _objects_mesh]:
+	for m in [_path_mesh, _traj_mesh, _pred_mesh, _trail_mesh, _objects_mesh, _lanes_mesh]:
 		m.clear_surfaces()
 	for l in _object_labels.get_children():
 		l.free()
@@ -94,6 +95,8 @@ func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D, actors: Arr
 func update_overlay(msg: Dictionary) -> void:
 	if msg.has("path"):
 		_draw_path(msg.path, msg.get("path_gear", []))
+	if msg.has("lanes"):
+		_draw_lanes(msg.lanes)
 	if msg.has("objects"):
 		_draw_objects(msg.objects)
 	_set_ribbon(_traj_mesh, msg.get("planned", []), 0.22, 0.03, TRAJ)
@@ -140,6 +143,21 @@ func _process(_delta: float) -> void:
 		_shots.pop_front()
 		if _shot_restore >= 0:
 			rig.set_mode(_shot_restore)
+
+
+## Lane map: road surface per lane (route lanes slightly lighter), white
+## boundary lines and a dashed centre line.
+func _draw_lanes(lanes: Array) -> void:
+	_lanes_mesh.clear_surfaces()
+	var b := D.Batch.new()
+	for lane in lanes:
+		var on_route := bool(lane.get("route", false))
+		b.band(lane.left, lane.right, 0.002, Color(0.30, 0.33, 0.38, 0.9) if on_route else Color(0.17, 0.18, 0.2, 0.9))
+	for lane in lanes:
+		for side in ["left", "right"]:
+			b.ribbon(lane[side], 0.12, 0.007, Color(0.93, 0.94, 0.95, 0.95))
+		b.dashed(lane.center, 0.08, 0.006, Color(1, 1, 1, 0.35))
+	b.commit(_lanes_mesh, _overlay_mat)
 
 
 ## Visual model of a scripted actor, attached to its kinematic body (origin:
