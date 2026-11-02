@@ -89,14 +89,14 @@ Screenshots for documentation: `--set "simulation.screenshot_times=[5.0]" "simul
 | You want to add | Where | Selected by |
 |---|---|---|
 | a path planner | `planning/plugins/<name>/` + `planning/registry.py` | `planning.planner.type` |
-| a trajectory-output planner (e.g. Diffusion Planner) | its own node + a dataflow | `doraware run --dataflow …` |
+| a trajectory-output planner (e.g. Diffusion Planner) | `planning/trajectory_planning/plugins/<name>/` + its `registry.py` | `planning.trajectory_planner.type`, run with `--dataflow dataflows/trajectory_planner.yml` |
 | a controller | `control/plugins/<name>/` + `control/registry.py` | `control.controller.type` |
 | a simulator backend | `simulation/plugins/<name>/` + `simulation/registry.py` | `simulation.backend` |
 | a scenario source | `evaluation/scenarios/` + its `registry.py` | `evaluation.scenario_source` |
 | a component (perception, localization, …) | `src/doraware/<component>/` + `interfaces/<domain>.py` | a dataflow |
 
 Plugins in separate pip packages register through entry points (`doraware.planners`,
-`doraware.controllers`, `doraware.simulators`, `doraware.scenario_sources`). The step-by-step guide with
+`doraware.trajectory_planners`, `doraware.controllers`, `doraware.simulators`, `doraware.scenario_sources`). The step-by-step guide with
 code skeletons is [docs/extending.md](docs/extending.md).
 
 ## Repository layout
@@ -105,13 +105,14 @@ code skeletons is [docs/extending.md](docs/extending.md).
 src/doraware/
   interfaces/      typed messages per domain + Arrow codec            ← the contract between components
   core/            config, clock, lockstep barrier, plugin registry, geometry, Dora node runtime
-  planning/        planner node + registry, plugins/state_lattice, trajectory_generation/, signals/
+  planning/        planner node + registry, plugins/state_lattice, trajectory_generation/,
+                   trajectory_planning/ (node + registry for trajectory-output planners), signals/
   control/         controller node + registry, gear manager, delay compensation, plugins/mpc
   simulation/      sim bridge node, lockstep coordinator, backend contract + registry, plugins/godot
   evaluation/      evaluator node, metrics, judge, scenarios/ (sources + registry), suite/ (runner, regression)
   recording/       MCAP recorder node, replay
   cli.py           the `doraware` command
-dataflows/         Dora dataflows (which components run and how they connect)
+dataflows/         Dora dataflows: closed_loop.yml (path planner), trajectory_planner.yml
 configs/           parameters, one section per package
 simulator/godot/   Godot project: scripts/sim (vehicle physics, actuators) and scripts/gui (3D view, HUD)
 tests/             unit/<package>/, integration (Godot), e2e (closed loop), regression baseline

@@ -19,6 +19,7 @@ Plugin registries (all built on `doraware.core.registry.Registry`):
 | Registry | Config key | Entry-point group | Factory signature | Contract |
 |---|---|---|---|---|
 | `planning/registry.py` | `planning.planner.type` | `doraware.planners` | `(params, cfg)` | `PathPlanner.plan(PlanningRequest) -> PlanningResult` |
+| `planning/trajectory_planning/registry.py` | `planning.trajectory_planner.type` | `doraware.trajectory_planners` | `(params, cfg)` | `TrajectoryPlanner.plan(request, state, t)`, `.trajectory_at(state, t) -> Trajectory` |
 | `control/registry.py` | `control.controller.type` | `doraware.controllers` | `(params, cfg, vehicle)` | `Controller.on_trajectory(Trajectory)`, `.step(VehicleState, t_ns) -> (ControlCommand, ControlDebug)` |
 | `simulation/registry.py` | `simulation.backend` | `doraware.simulators` | `(params, cfg, *, physics_hz, log_path, gui)` | `SimulatorBackend` in `simulation/backend.py` |
 | `evaluation/scenarios/registry.py` | `evaluation.scenario_source` | `doraware.scenario_sources` | `()` | `ScenarioSource.suite(name, n_random)`, `.build(id, seed, cfg) -> ScenarioBundle` |
@@ -95,61 +96,67 @@ The entry point is called like a built-in factory, `(params, cfg)`.
 ## Add a trajectory-output planner (for example Diffusion Planner)
 
 Learned planners usually output a time-parameterised trajectory directly and run
-periodically rather than once per request. Such a planner replaces both the
-`planner` and the `trajectory_generator` nodes. It is a node of its own, because
-its inputs (ego history, objects, lanes, route) are not those of a `PathPlanner`.
+on every planner tick rather than once per request. They are plugins of the
+**trajectory planner** node (`planning/trajectory_planning/`), which replaces the
+`planner` and `trajectory_generator` nodes in `dataflows/trajectory_planner.yml`.
+The node keeps the lockstep contract for you: on every planner tick `t` it
+publishes exactly one `Trajectory` stamped `t`, hands a new `PlanningRequest` to the
+plugin at the next tick (blocking is fine: planning is wall time), and publishes the
+plugin's `PlanningResult` and `trajectory_status` after each plan.
 
-The contract a trajectory producer must keep, so that the controller, the signal
-decider and the lockstep keep working:
+1. Implement the `TrajectoryPlanner` protocol (`planning/trajectory_planning/registry.py`)
+   in `planning/trajectory_planning/plugins/my_planner/planner.py`:
 
-* On every planner tick `t` of the sim clock (`RateClock(timing, "planner_hz")` on
-  the `VehicleState` stamps) publish exactly one `Trajectory` with
-  `header.stamp = start_time = t`.
-* Fixed `time_step` (`timing.trajectory_time_step`), signed velocity, `gear` per
-  point, and `valid_until = t + timing.trajectory_validity`.
-* An empty trajectory means "stop" (no plan). Consumers bring the vehicle to a safe
-  stop and switch the hazard lights on.
-* At `t = 0` the node may take as long as it needs (wall time); the consumers wait
-  for the first trajectory up to `timing.planning_wall_timeout`.
+   ```python
+   from doraware.interfaces import PlanningResult, PlanningStatus, Trajectory, to_ns
 
-A minimal node (`src/doraware/planning/diffusion/node.py`, with the model in plain
-Python modules next to it):
+   class MyPlanner:
+       def __init__(self, params: dict, cfg: dict):
+           self.timing = cfg["timing"]
+           self.model = load_model(params["checkpoint"])        # lazy heavy import (torch, ...)
+           self.goal = None
 
-```python
-from doraware.core.clock import RateClock
-from doraware.core.node import NodeRuntime
-from doraware.interfaces import Trajectory, VehicleState, to_ns
+       def plan(self, request, state, t_ns):                     # new request at tick t_ns
+           self.goal, self.map = request.goal, request.map
+           return PlanningResult(request_id=request.request_id, status=PlanningStatus.SUCCESS,
+                                 goal=request.goal)                # for evaluation / GUI (or None)
 
-def main():
-    rt = NodeRuntime("trajectory_planner", {"vehicle_state": VehicleState})
-    ticks = RateClock(rt.cfg["timing"], "planner_hz")
-    model = load_model(rt.cfg["planning"]["planner"]["diffusion"])      # lazy heavy import
-    for ev in rt.events():
-        if ev["type"] != "INPUT":
-            continue
-        state = rt.decode(ev)
-        t = state.header.stamp
-        if not ticks.is_tick(t):
-            continue
-        traj: Trajectory = model.infer(state, t)                         # your code
-        traj.header = rt.header(t, "trajectory")
-        traj.valid_until = t + to_ns(rt.cfg["timing"]["trajectory_validity"])
-        rt.send("trajectory", traj)
-```
+       def trajectory_at(self, state, t_ns) -> Trajectory:       # every planner tick
+           traj = self.model.infer(state, self.goal, self.map, t_ns)   # your code
+           traj.start_time = t_ns
+           traj.time_step = self.timing["trajectory_time_step"]
+           traj.valid_until = t_ns + to_ns(self.timing["trajectory_validity"])
+           return traj                                            # empty = stop
 
-Then copy `dataflows/closed_loop.yml` to `dataflows/trajectory_planner.yml`, replace
-the `planner` and `trajectory_generator` nodes by this node (output `trajectory`),
-point the `controller`, `signal_decider`, `sim_bridge` and `evaluator` inputs at it,
-and run it with `doraware run --dataflow dataflows/trajectory_planner.yml`. The
-recorder picks up the new topics by itself.
+       def diagnostics(self) -> dict:
+           return {}                                              # or plan_start_time / plan_duration
+   ```
 
-Not available yet, and needed for a full learned-planner setup:
+   The trajectory must use a fixed `time_step`, a signed velocity and an explicit
+   `gear` per point. An empty trajectory means "stop": the controller stops safely and
+   the hazard lights come on.
 
-* object, lane and route messages (add them as described below),
-* other traffic participants in the simulator,
-* an evaluation verdict without a `PlanningResult`. The current judge decides
-  "rejected" vs. "goal reached" from the path planner's result and the trajectory
-  generator's timing.
+2. Register it in `planning/trajectory_planning/registry.py` (or through the
+   `doraware.trajectory_planners` entry point of your package), put its parameters
+   under `planning.trajectory_planner.my_planner`, and select it with
+   `planning.trajectory_planner.type: my_planner`.
+
+3. Run it: `doraware run --scenario B2 --dataflow dataflows/trajectory_planner.yml
+   --set planning.trajectory_planner.type=my_planner`. The recorder, the controller, the
+   signal decider and the evaluator work unchanged.
+
+The built-in `path_pipeline` plugin (the path planner plus trajectory generation in
+one node) is the reference: an e2e test checks that it gives the same closed loop,
+bit for bit, as the default dataflow.
+
+How the evaluator judges such a planner: the `PlanningResult` status decides between
+"rejected" and "planned" (and its path, if any, is used for path expectations such as
+the number of direction changes). If `diagnostics()` provides `plan_start_time` and
+`plan_duration`, the run ends after the plan; otherwise it ends when the newest
+trajectory no longer moves and the vehicle has settled.
+
+Not available yet, and needed for a full learned-planner setup: object, lane and route
+messages (add them as described below) and other traffic participants in the simulator.
 
 ## Add a component (perception, localization, prediction, ...)
 

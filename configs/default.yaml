@@ -82,6 +82,11 @@ planning:
       # not a proof, not an exhausted search), re-plan once without these keys (planner defaults).
       accuracy_fallback_keys: [position_tolerance, yaw_tolerance]
 
+  trajectory_planner:          # used by dataflows/trajectory_planner.yml (planners that output trajectories)
+    type: path_pipeline          # a name in planning/trajectory_planning/registry.py or a
+                                 # `doraware.trajectory_planners` entry point
+    path_pipeline: {}            # planning.planner + planning.trajectory_generation in one node
+
   trajectory_generation:       # GeometricPath -> time-based Trajectory
     max_forward_speed: 1.5       # [m/s]
     max_reverse_speed: 1.0       # [m/s]

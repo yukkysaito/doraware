@@ -20,7 +20,8 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from doraware.interfaces import Gear, PlanningResult, PlanningStatus
+from doraware.core.trajectory import STATIONARY_EPS
+from doraware.interfaces import Gear, PlanningResult, PlanningStatus, to_sec
 from doraware.evaluation.metrics import ClosedLoopMetrics, count_gear_changes
 
 STATUS_NAMES = {  # PlanningStatus -> planner status strings of the original tests
@@ -84,12 +85,10 @@ class ScenarioJudge:
             if t >= self.plan_time + c["rejection_hold_time"]:
                 return self._finish("rejected", [])
             return self.verdict
-        if self.plan_end_time is None:
-            return self.verdict
-        if t > self.plan_end_time + c["timeout_margin"]:
+        if self.plan_end_time is not None and t > self.plan_end_time + c["timeout_margin"]:
             return self._finish("timeout", ["did not settle at the goal in time"])
         stopped = bool(m.speed) and abs(m.speed[-1]) <= c["final_speed_tolerance"]
-        if t >= self.plan_end_time and stopped:
+        if self._motion_over(t) and stopped:
             if self.settle_start is None:
                 self.settle_start = t
             if t - self.settle_start >= c["settle_time"]:
@@ -97,6 +96,19 @@ class ScenarioJudge:
         else:
             self.settle_start = None
         return self.verdict
+
+    def _motion_over(self, t: float) -> bool:
+        """The planned motion is over: past the announced plan end, or, for planners
+        that announce none (online trajectory planners), the newest trajectory has no
+        moving point from ``t`` on."""
+        if self.plan_end_time is not None:
+            return t >= self.plan_end_time
+        traj = self.m.traj
+        if traj is None or len(traj) == 0:
+            return False
+        i0 = max(int(np.ceil((t - to_sec(traj.start_time)) / traj.time_step - 1e-9)), 0)
+        v = np.abs(np.asarray(traj.longitudinal_velocity[i0:]))
+        return len(v) > 0 and bool(np.all(v < STATIONARY_EPS))
 
     # ------------------------------------------------------------- verdict
     def _finish(self, outcome: str, reasons: List[str]) -> Verdict:

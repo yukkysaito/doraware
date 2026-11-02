@@ -81,6 +81,15 @@ By class (fixed scenarios + seed 42):
   (`timing.lockstep_wall_timeout`), and every wait longer than `timing.lockstep_stall_warning`
   (2 s) is reported as a warning and as the metric `max_lockstep_wait`. A producer that really
   stops is still detected and fails the run (e2e fault-injection tests).
+  Root cause, as far as it can be determined: the stall is inside Dora's `send_output` path. The
+  log shows only Dora's own send-path diagnostics ("entering zenoh put of an SHM buffer",
+  "entering report_output_sent"), which Dora added to locate a known `send_output` wedge
+  ([dora#2742](https://github.com/dora-rs/dora/issues/2742),
+  [dora#2885](https://github.com/dora-rs/dora/issues/2885)); every direct zenoh send also reports
+  to the daemon's single event loop ([dora#3984](https://github.com/dora-rs/dora/issues/3984)), which
+  many concurrent dataflows load. It did not reproduce in 6 single reruns of N-038, 100 random
+  scenarios with 12 workers, or a second 207-scenario run. If it recurs, nodes now log any
+  `send_output` that blocks for more than 0.5 s, which names the stalled node and output.
 * The kinematic MPC model (no tire slip) is meant for parking speeds (≤ 1.5 m/s).
 
 ## 5. Reproduction

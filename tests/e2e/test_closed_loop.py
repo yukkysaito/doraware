@@ -124,6 +124,19 @@ def test_determinism():
         assert m1[k] == m2[k]
 
 
+def test_trajectory_planner_dataflow_matches_the_default_pipeline():
+    """A trajectory planner node (path_pipeline plugin, dataflows/trajectory_planner.yml) in
+    place of planner + trajectory_generator gives the same closed loop, bit for bit."""
+    r1, m1 = _run("pipeline_default")
+    r2 = run_scenario("B2", OUT / "pipeline_trajectory_planner", [], False, 42, True,
+                      dataflow=REPO_ROOT / "dataflows" / "trajectory_planner.yml")
+    _assert_goal(r2, r2["metrics"])
+    t_end = int(round(r1["end_sim_time"] * 1e9))
+    a, b = _states(r1["run_dir"]), _states(r2["run_dir"])
+    a, b = a[a[:, 0] <= t_end], b[b[:, 0] <= t_end]
+    assert r1["end_sim_time"] == r2["end_sim_time"] and len(a) > 100 and np.array_equal(a, b)
+
+
 def test_solver_failure_safe_stop():
     r, m = _run("fault_solver", overrides=["fault_injection.solver_failure_after=6.0"], record=False)
     assert r["outcome"] in ("timeout", "stopped") and m["collision_count"] == 0

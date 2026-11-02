@@ -56,6 +56,8 @@ simulated vehicle are reported separately (`min_clearance_planned`, `min_clearan
 11. vehicle signals — default policy: hazard lights for the whole parking manoeuvre and off once parked;
     `turn_indicators` policy: both turns of B2 indicated, no hazard; rejection (G1) and silent planning →
     hazard lights; signal states are deterministic and reproduced by command re-simulation.
+12. trajectory planner dataflow — `dataflows/trajectory_planner.yml` with the `path_pipeline`
+    plugin gives the same closed loop as the default dataflow, bit for bit.
 
 ## Updating the regression baseline
 

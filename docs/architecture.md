@@ -71,6 +71,7 @@ src/doraware/
   planning/              planner node + registry.py (path planner plugins)
     plugins/state_lattice/   State Lattice adapter and request policy
     trajectory_generation/   path -> Trajectory node and algorithms
+    trajectory_planning/     trajectory planner node + registry, plugins/path_pipeline
     signals/                 turn indicator / hazard light decision node
   control/               controller node + registry.py, gear manager, delay compensation
     plugins/mpc/             LTV-MPC trajectory follower: model, reference, QP, modes
@@ -98,7 +99,7 @@ Conventions:
 | Extension | Registry / place | Selected by |
 |---|---|---|
 | path planner | `planning/registry.py` | `planning.planner.type` |
-| trajectory-output planner | its own node, dataflow variant | `doraware run --dataflow` |
+| trajectory-output planner | `planning/trajectory_planning/registry.py` | `planning.trajectory_planner.type` + `--dataflow dataflows/trajectory_planner.yml` |
 | controller | `control/registry.py` | `control.controller.type` |
 | simulator backend | `simulation/registry.py` | `simulation.backend` |
 | scenario source | `evaluation/scenarios/registry.py` | `evaluation.scenario_source` |

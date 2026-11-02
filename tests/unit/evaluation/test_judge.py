@@ -123,3 +123,39 @@ def test_start_in_collision_without_motion_is_not_a_system_collision():
         if v.done:
             break
     assert v.done and v.passed and v.outcome == "rejected", v.reasons
+
+
+def _traj_at(t, moving):
+    """Trajectory window at sim time t: still moving forward, or stationary at the goal."""
+    from doraware.interfaces import Trajectory
+    n = 20
+    v = np.full(n, 1.0 if moving else 0.0)
+    return Trajectory(header=Header(stamp=to_ns(t)), start_time=to_ns(t), time_step=0.1,
+                      valid_until=to_ns(t + 1.0), x=np.full(n, 15.0), y=np.full(n, 10.0), yaw=np.zeros(n),
+                      longitudinal_velocity=v, longitudinal_acceleration=np.zeros(n), curvature=np.zeros(n),
+                      front_wheel_angle=np.zeros(n), gear=np.full(n, int(Gear.DRIVE), np.int8))
+
+
+def test_without_plan_timing_the_motion_ends_when_the_trajectory_stops():
+    """Trajectory planners announce no plan end: the judge waits until the newest
+    trajectory has no moving point any more, then for the settle time."""
+    j, m = _judge({"scenario_class": "feasible", "plan_expected": True})
+    p = _plan()
+    m.on_plan(p)
+    j.on_plan(p, 0.0)
+    for k in range(400):                                  # parked at the goal, but the plan still moves
+        t = k / 50
+        m.on_trajectory(_traj_at(t, moving=True))
+        m.on_state(_state(t, 15.0))
+        assert not j.update(t).done
+    for k in range(400, 600):                             # the trajectory stops: settle, then goal reached
+        t = k / 50
+        m.on_trajectory(_traj_at(t, moving=False))
+        m.on_state(_state(t, 15.0))
+        from doraware.interfaces import ControlCommand
+        m.on_command(ControlCommand(header=Header(stamp=to_ns(t))))
+        v = j.update(t)
+        if v.done:
+            break
+    assert v.done and v.passed and v.outcome == "goal_reached", v.reasons
+    assert 8.0 + 1.0 - 1e-9 <= t < 8.0 + 1.1
