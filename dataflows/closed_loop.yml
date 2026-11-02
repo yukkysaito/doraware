@@ -64,7 +64,7 @@ nodes:
       control_debug: {source: controller/control_debug, queue_size: 100000}
       planning_result: {source: planner/planning_result, queue_size: 10}
       vehicle_signal_command: {source: signal_decider/vehicle_signal_command, queue_size: 100000}
-    outputs: [vehicle_state, vehicle_signal_status, sim_status, diagnostics]
+    outputs: [vehicle_state, vehicle_signal_status, ground_truth_objects, sim_status, diagnostics]
 
   - id: evaluator
     path: ${PYTHON}

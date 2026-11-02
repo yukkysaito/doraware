@@ -27,6 +27,11 @@ Plugin registries (all built on `doraware.core.registry.Registry`):
 `params` is the plugin's own config section (for example `planning.planner.my_planner`,
 `{}` when absent) and `cfg` the full system config.
 
+Instead of a registered name, any `type` / `backend` key also accepts a location, which
+is handy while developing a plugin: `my_package.planner:MyPlanner` (importable module)
+or `/path/to/planner.py:MyPlanner` (a file), for example
+`--set planning.trajectory_planner.type=$PWD/my_planner.py:MyPlanner`.
+
 Rules that keep the platform modular:
 
 * Only `node.py` files (and `core/node.py`) import Dora. Everything else is plain
@@ -130,7 +135,17 @@ plugin's `PlanningResult` and `trajectory_status` after each plan.
 
        def diagnostics(self) -> dict:
            return {}                                              # or plan_start_time / plan_duration
+
+       inputs = {"objects": PerceivedObjects}                     # optional extra node inputs
+
+       def on_input(self, name, msg):                             # called before each tick's trajectory
+           self.objects = msg
    ```
+
+   Extra inputs a plugin declares in `inputs` are delivered through `on_input`. In
+   lockstep the node waits for the message of the current tick first, so the plugin
+   always sees the objects of the same sim time. `dataflows/trajectory_planner.yml`
+   wires `objects` to the simulator's ground truth; a perception node replaces it.
 
    The trajectory must use a fixed `time_step`, a signed velocity and an explicit
    `gear` per point. An empty trajectory means "stop": the controller stops safely and
@@ -160,14 +175,17 @@ messages (add them as described below) and other traffic participants in the sim
 
 ## Add a component (perception, localization, prediction, ...)
 
-1. **Messages.** Create `src/doraware/interfaces/<domain>.py` (for example
-   `perception.py` with `DetectedObjects`) as dataclasses with a `header: Header`
-   field. Use the existing field types (`float`, `int`, `str`, `bool`, `IntEnum`,
-   nested dataclasses, `F64Array` / `I8Array` / `U8Array`). The Arrow codec and the
-   MCAP JSON schema are derived from the annotations. In `interfaces/__init__.py`,
-   add the star re-export and append the module to `_DOMAINS`. Every dataclass with
-   a `header` is then a topic message (`MESSAGE_TYPES`) and is recorded automatically.
-   Design them as contracts: document frames, units and stamps, separate requests
+General recipe:
+
+1. **Messages.** Use an existing contract if there is one (perception:
+   `PerceivedObjects` in `interfaces/perception.py`). Otherwise create
+   `src/doraware/interfaces/<domain>.py` with dataclasses that have a `header: Header`
+   field and the existing field types (`float`, `int`, `str`, `bool`, `IntEnum`, nested
+   dataclasses, `F64Array` / `I64Array` / `I8Array` / `U8Array`). The Arrow codec and
+   the MCAP JSON schema are derived from the annotations. In `interfaces/__init__.py`,
+   add the star re-export and append the module to `_DOMAINS`. Every dataclass with a
+   `header` is then a topic message (`MESSAGE_TYPES`) and is recorded automatically.
+   Design messages as contracts: document frames, units and stamps, separate requests
    from reported state, and keep algorithm-specific data out of them.
 2. **Algorithms.** Put them in `src/doraware/<component>/` as plain Python. If there
    will be several algorithms, give the component a `registry.py` and a `plugins/`
@@ -182,10 +200,28 @@ messages (add them as described below) and other traffic participants in the sim
 6. **Tests.** Unit tests in `tests/unit/<component>/`; if it influences driving, an
    end-to-end case in `tests/e2e/`.
 
-While a component does not exist, the simulator provides its output as ground truth
-(today: `VehicleState` instead of localization, the scenario's occupancy grid
-instead of perception). Replacing ground truth with the new component is a dataflow
-change.
+### Perception, concretely
+
+The contract is `PerceivedObjects`: one entry per object in parallel arrays
+(`object_id`, `classification`, probabilities, box centre / yaw / size, velocity and
+yaw rate in the map frame). The same message carries detections
+(`object_id = UNTRACKED`) and tracks (stable ids). Until perception exists, the sim
+bridge publishes the simulated obstacles in this contract on
+`sim_bridge/ground_truth_objects` at `planner_hz` (`simulation/ground_truth.py`).
+
+1. Create `src/doraware/perception/` with your detector or tracker as plain Python and
+   `perception/node.py` that publishes `PerceivedObjects` on an output `objects`,
+   stamped with the sim time of the data it used.
+2. Add the node to a dataflow and connect `perception/objects` to its consumers, in
+   place of `sim_bridge/ground_truth_objects`. To compare with ground truth, the
+   evaluator or a test can subscribe to both.
+3. Connect `perception/objects` to the sim bridge's optional `objects` input: the GUI
+   then draws the objects (outlines coloured by class, with ids) over the simulated
+   world, so you can check them against the real obstacles.
+
+Today's planner plugin takes the occupancy grid of the `PlanningRequest` and does not
+read objects; a planner that does subscribes to `objects` itself (for example as a
+trajectory planner plugin with its own node inputs).
 
 ## Add a controller
 

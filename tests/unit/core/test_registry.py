@@ -31,3 +31,16 @@ def test_entry_points_are_discovered(monkeypatch):
     from collections import OrderedDict
     assert isinstance(r.create("external"), OrderedDict)
     assert r.factory("builtin") is dict           # built-ins win over entry points with the same name
+
+
+def test_plugins_can_be_named_by_location(tmp_path):
+    f = tmp_path / "my_plugin.py"
+    f.write_text("class Planner:\n    def __init__(self, x):\n        self.x = x\n")
+    r = Registry("widget")
+    assert r.create(f"{f}:Planner", 3).x == 3                     # file path
+    from collections import OrderedDict
+    assert isinstance(r.create("collections:OrderedDict"), OrderedDict)   # module path
+    with pytest.raises(ValueError, match="cannot load widget"):
+        r.create(f"{tmp_path / 'missing.py'}:Planner")
+    with pytest.raises(ValueError, match="cannot load widget"):
+        r.create("collections:NoSuchThing")

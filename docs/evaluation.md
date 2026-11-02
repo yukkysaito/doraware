@@ -88,7 +88,8 @@ By class (fixed scenarios + seed 42):
   [dora#2885](https://github.com/dora-rs/dora/issues/2885)); every direct zenoh send also reports
   to the daemon's single event loop ([dora#3984](https://github.com/dora-rs/dora/issues/3984)), which
   many concurrent dataflows load. It did not reproduce in 6 single reruns of N-038, 100 random
-  scenarios with 12 workers, or a second 207-scenario run. If it recurs, nodes now log any
+  scenarios with 12 workers, a second 207-scenario run, or 48 runs of N-038 with 16 in parallel
+  (all identical, longest lockstep wait 0.08 s, no slow send). If it recurs, nodes now log any
   `send_output` that blocks for more than 0.5 s, which names the stalled node and output.
 * The kinematic MPC model (no tire slip) is meant for parking speeds (≤ 1.5 m/s).
 

@@ -15,10 +15,18 @@ points, so they never have to edit doraware::
 
 The entry point may name a class or any callable. It is called with the same
 arguments as a built-in factory (documented by each registry).
+
+For quick experiments a plugin can also be named by location instead of by a
+registered name: ``"my_package.planner:MyPlanner"`` (importable module) or
+``"/path/to/planner.py:MyPlanner"`` (a file).
 """
 from __future__ import annotations
 
+import importlib
+import importlib.util
+import sys
 from importlib import metadata
+from pathlib import Path
 from typing import Callable, Dict, Generic, List, Optional, TypeVar
 
 T = TypeVar("T")
@@ -51,9 +59,31 @@ class Registry(Generic[T]):
         if name in self._factories:
             return self._factories[name]
         ep = self._entry_points().get(name)
-        if ep is None:
-            raise ValueError(f"unknown {self.kind} {name!r}; available: {self.names()}")
-        return ep.load()
+        if ep is not None:
+            return ep.load()
+        if ":" in name:
+            return _load_location(name, self.kind)
+        raise ValueError(f"unknown {self.kind} {name!r}; available: {self.names()}")
 
     def create(self, name: str, *args, **kwargs) -> T:
         return self.factory(name)(*args, **kwargs)
+
+
+def _load_location(name: str, kind: str) -> Callable:
+    """``module.path:attr`` or ``/file/path.py:attr`` -> the attribute."""
+    where, _, attr = name.rpartition(":")
+    try:
+        if where.endswith(".py"):
+            path = Path(where).expanduser().resolve()
+            mod_name = f"doraware_plugin_{abs(hash(str(path)))}"
+            spec = importlib.util.spec_from_file_location(mod_name, path)
+            if spec is None or spec.loader is None or not path.exists():
+                raise ImportError(f"no such file: {path}")
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[mod_name] = module
+            spec.loader.exec_module(module)
+        else:
+            module = importlib.import_module(where)
+        return getattr(module, attr)
+    except (ImportError, AttributeError) as exc:
+        raise ValueError(f"cannot load {kind} {name!r}: {exc}") from exc

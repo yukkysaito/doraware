@@ -16,15 +16,16 @@ from typing import Callable, Dict, Optional
 from doraware.core.node import NodeRuntime
 from doraware.interfaces import (ControlCommand, ControlDebug, DiagnosticLevel, Gear, PlanningResult,
                                  ScenarioDone, SimulationScene, SimulationState, SimulationStatus, Trajectory,
-                                 VehicleSignalCommand)
+                                 PerceivedObjects, VehicleSignalCommand)
 from doraware.simulation.backend import SimFrame, SimulatorBackend, VizFrame
 from doraware.simulation.coordinator import StepCoordinator
+from doraware.simulation.ground_truth import scene_objects
 from doraware.simulation.registry import make_simulator
 
 CAMERAS = {"top": 0, "chase": 1, "free": 2, "overview": 3}    # GUI cameras for screenshots
 INPUTS = {"scene": SimulationScene, "control_command": ControlCommand, "scenario_done": ScenarioDone,
           "trajectory": Trajectory, "control_debug": ControlDebug, "planning_result": PlanningResult,
-          "vehicle_signal_command": VehicleSignalCommand}
+          "vehicle_signal_command": VehicleSignalCommand, "objects": PerceivedObjects}
 
 
 class Bridge:
@@ -64,6 +65,7 @@ class Bridge:
         self.debug: Optional[ControlDebug] = None
         self.plan: Optional[PlanningResult] = None
         self.plan_sent = False
+        self.objects: Optional[PerceivedObjects] = None
         self.shots = sorted(float(x) for x in (cfg["simulation"].get("screenshot_times") or []))
         self.shot_cameras = list(cfg["simulation"].get("screenshot_cameras") or ["top", "chase"])
         unknown = [c for c in self.shot_cameras if c not in CAMERAS]
@@ -95,6 +97,8 @@ class Bridge:
             self.plan, self.plan_sent = msg, False
         elif iid == "scene":
             self.scene = msg
+        elif iid == "objects":
+            self.objects = msg       # perception output (optional input): drawn in the GUI
 
     def pump(self, until: Callable[[], bool], timeout: float) -> bool:
         """Process events until ``until()`` is true. False on wall timeout."""
@@ -147,6 +151,9 @@ class Bridge:
         self.rt.send("vehicle_state", dataclasses.replace(f.vehicle_state, header=self.rt.header(t, "vehicle_state")))
         self.rt.send("vehicle_signal_status", dataclasses.replace(
             f.signal_status, header=self.rt.header(t, "vehicle_signal_status", frame_id="base_link")))
+        if self.coord.planner.is_tick(self.step):     # ground truth in the perception contract
+            self.rt.send("ground_truth_objects", scene_objects(
+                self.scene, self.rt.header(t, "ground_truth_objects")))
         self.rt.send("sim_status", SimulationStatus(
             header=self.rt.header(t, "sim_status"), state=SimulationState.RUNNING, step_count=self.step,
             physics_dt=self.coord.dt, collision_count=f.contacts, collision_objects=",".join(f.contact_names),
@@ -219,7 +226,8 @@ class Bridge:
         self.sim.send_viz(VizFrame(
             planned=list(zip(self.traj.x.tolist(), self.traj.y.tolist())) if self.traj is not None else [],
             predicted=list(zip(d.predicted_x.tolist(), d.predicted_y.tolist())) if d is not None else [],
-            path=path, path_gear=path_gear, info=info))
+            path=path, path_gear=path_gear, info=info, objects=self.objects))
+        self.objects = None
 
     def maybe_screenshot(self) -> None:
         if self.sim.headless:

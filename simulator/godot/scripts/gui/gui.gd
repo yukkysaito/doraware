@@ -17,6 +17,12 @@ const TRAJ := Color(0.25, 0.92, 1.0, 0.75)
 const PRED := Color(1.0, 0.35, 0.85, 0.95)
 const TRAIL := Color(1.0, 0.85, 0.35, 0.65)
 const GEAR_REVERSE := 2
+## Perceived object colours by ObjectClass (interfaces/perception.py)
+const CLASS_COLORS := [Color(0.80, 0.80, 0.80), Color(0.30, 0.75, 1.0), Color(0.35, 0.55, 1.0),
+	Color(0.55, 0.45, 1.0), Color(1.0, 0.55, 0.85), Color(0.35, 1.0, 0.75), Color(1.0, 0.85, 0.25),
+	Color(0.85, 0.65, 0.40), Color(1.0, 0.45, 0.35)]
+const CLASS_NAMES := ["unknown", "car", "truck", "bus", "motorcycle", "bicycle", "pedestrian", "animal",
+	"static"]
 
 var world := WorldView.new()
 var car := VehicleView.new()
@@ -28,6 +34,8 @@ var _path_mesh := ArrayMesh.new()
 var _traj_mesh := ArrayMesh.new()
 var _pred_mesh := ArrayMesh.new()
 var _trail_mesh := ArrayMesh.new()
+var _objects_mesh := ArrayMesh.new()
+var _object_labels := Node3D.new()
 var _trail: Array[Vector2] = []
 var _overlay_mat := D.vertex_color_mat()
 var _shots: Array = []        # pending screenshots: [path, camera]
@@ -37,7 +45,8 @@ var _shot_restore := -1
 
 func _ready() -> void:
 	add_child(world)
-	for m in [_path_mesh, _trail_mesh, _traj_mesh, _pred_mesh]:
+	world.add_child(_object_labels)
+	for m in [_path_mesh, _trail_mesh, _traj_mesh, _pred_mesh, _objects_mesh]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -65,8 +74,10 @@ func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D) -> void:
 	car.build(vp)
 	_trail.clear()
 	info = {}
-	for m in [_path_mesh, _traj_mesh, _pred_mesh, _trail_mesh]:
+	for m in [_path_mesh, _traj_mesh, _pred_mesh, _trail_mesh, _objects_mesh]:
 		m.clear_surfaces()
+	for l in _object_labels.get_children():
+		l.free()
 	var bounds: Array = scene.get("bounds", [-20.0, 20.0, -20.0, 20.0])
 	var x0 := float(bounds[0])
 	var x1 := float(bounds[1])
@@ -80,6 +91,8 @@ func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D) -> void:
 func update_overlay(msg: Dictionary) -> void:
 	if msg.has("path"):
 		_draw_path(msg.path, msg.get("path_gear", []))
+	if msg.has("objects"):
+		_draw_objects(msg.objects)
 	_set_ribbon(_traj_mesh, msg.get("planned", []), 0.22, 0.03, TRAJ)
 	_set_ribbon(_pred_mesh, msg.get("predicted", []), 0.07, 0.045, PRED)
 	var scenario := str(msg.get("info", {}).get("scenario", ""))
@@ -123,6 +136,35 @@ func _process(_delta: float) -> void:
 		_shots.pop_front()
 		if _shot_restore >= 0:
 			rig.set_mode(_shot_restore)
+
+
+## Perceived objects (a perception component wired into the sim bridge): box
+## outlines at the ground and the top, coloured by class, with "#id class" labels.
+func _draw_objects(objects: Array) -> void:
+	_objects_mesh.clear_surfaces()
+	for l in _object_labels.get_children():
+		l.free()
+	var b := D.Batch.new()
+	for o in objects:
+		var cls := clampi(int(o.get("cls", 0)), 0, CLASS_COLORS.size() - 1)
+		var c: Color = CLASS_COLORS[cls]
+		var center := Vector3(float(o.x), 0.0, float(o.z))
+		var h := float(o.get("height", 1.5))
+		var bottom := float(o.get("y", h / 2.0)) - h / 2.0
+		for y in [bottom + 0.03, bottom + h + 0.02]:
+			b.rect_outline(center, float(o.rot_y), float(o.length), float(o.width), 0.06, y, c)
+		var l := Label3D.new()
+		var oid := int(o.get("id", -1))
+		l.text = ("#%d " % oid if oid >= 0 else "") + str(CLASS_NAMES[cls])
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.fixed_size = true
+		l.pixel_size = 0.0008
+		l.font_size = 24
+		l.outline_size = 6
+		l.modulate = c
+		l.position = center + Vector3(0, bottom + h + 0.4, 0)
+		_object_labels.add_child(l)
+	b.commit(_objects_mesh, _overlay_mat)
 
 
 func _set_ribbon(mesh: ArrayMesh, pts: Array, width: float, y: float, color: Color) -> void:

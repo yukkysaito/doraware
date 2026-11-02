@@ -30,6 +30,7 @@ import numpy as np
 F64Array = Annotated[np.ndarray, "float64"]
 I8Array = Annotated[np.ndarray, "int8"]
 U8Array = Annotated[np.ndarray, "uint8"]
+I64Array = Annotated[np.ndarray, "int64"]
 
 NS_PER_S = 1_000_000_000
 

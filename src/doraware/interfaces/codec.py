@@ -26,7 +26,7 @@ SCHEMA_VERSION = 1
 T = TypeVar("T")
 
 _ARRAY_DTYPES = {"float64": (pa.float64(), np.float64), "int8": (pa.int8(), np.int8),
-                 "uint8": (pa.uint8(), np.uint8)}
+                 "uint8": (pa.uint8(), np.uint8), "int64": (pa.int64(), np.int64)}
 
 
 def _resolve_hints(cls) -> Dict[str, Any]:

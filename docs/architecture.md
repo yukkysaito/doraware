@@ -56,8 +56,11 @@ the test strategy is in [`testing.md`](testing.md), and how to add packages is i
 | `recorder` | `doraware.recording` | Writes every topic to MCAP (JSON encoding, JSON-Schema channels). The runner subscribes it to every node output. It is off the control path. |
 
 Localization, perception and sensing are not implemented yet. The simulator
-currently provides the ground-truth `VehicleState` and the planner receives the
-map directly. These components will be added as new packages with their own
+currently provides ground truth in the contracts those components will use:
+`VehicleState`, and `PerceivedObjects` on `sim_bridge/ground_truth_objects`
+(at `planner_hz`). The planner receives the map directly. A perception node's
+`PerceivedObjects` wired into the sim bridge's optional `objects` input is
+drawn in the GUI (boxes coloured by class, with ids). These components will be added as new packages with their own
 messages and nodes, and the dataflow will route their outputs where ground truth
 is used today ([extending.md](extending.md)).
 
@@ -65,7 +68,7 @@ is used today ([extending.md](extending.md)).
 
 ```text
 src/doraware/
-  interfaces/            message types per domain (common, vehicle, map, planning, control, simulation, system) + Arrow codec
+  interfaces/            message types per domain (common, vehicle, map, perception, planning, control, simulation, system) + Arrow codec
   core/                  config, clock, lockstep barrier, plugin registry, geometry, occupancy,
                          trajectory sampling, Dora node runtime (core/node.py)
   planning/              planner node + registry.py (path planner plugins)
@@ -75,7 +78,7 @@ src/doraware/
     signals/                 turn indicator / hazard light decision node
   control/               controller node + registry.py, gear manager, delay compensation
     plugins/mpc/             LTV-MPC trajectory follower: model, reference, QP, modes
-  simulation/            sim bridge node, lockstep coordinator, backend contract + registry.py
+  simulation/            sim bridge node, lockstep coordinator, ground truth, backend contract + registry.py
     plugins/godot/           Godot backend: process, protocol, frame conversion
   evaluation/            evaluator node, metrics, judge
     scenarios/               scenario manager node, ScenarioBundle, registry.py, parking source
@@ -123,6 +126,7 @@ The schema is derived from the dataclass annotations, and the metadata carries
 | `ControlDebug` | MPC mode, solver status/time/iterations/cost, tracking errors, predicted trajectory |
 | `VehicleSignalCommand` | `turn_indicator` (`TurnIndicator`: `OFF`/`LEFT`/`RIGHT`), `hazard_lights` |
 | `VehicleSignalStatus` | active `turn_indicator` / `hazard_lights`, instantaneous `left_lamp_on` / `right_lamp_on` |
+| `PerceivedObjects` | per object (parallel arrays): `object_id` (stable while tracked, −1 = untracked), `classification` (`ObjectClass`) + probability, existence probability, box centre / yaw / size, velocity and yaw rate in map |
 | `VehicleParameters` | Autoware VehicleInfo geometry + mass, CoG, yaw inertia, friction, actuator limits |
 | `OccupancyGrid` | row-major `data[iy*width+ix]`, resolution, origin |
 | `PlanningRequest` | start, goal (`Pose2D`), map, vehicle, opaque `planner_config` JSON |

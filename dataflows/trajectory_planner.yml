@@ -26,6 +26,8 @@ nodes:
     inputs:
       planning_request: {source: scenario_manager/planning_request, queue_size: 10}
       vehicle_state: {source: sim_bridge/vehicle_state, queue_size: 100000}
+      # perception (ground truth until a perception node exists); used only by plugins that declare it
+      objects: {source: sim_bridge/ground_truth_objects, queue_size: 100000}
     outputs: [trajectory, planning_result, trajectory_status, diagnostics]
 
   - id: signal_decider
@@ -56,7 +58,7 @@ nodes:
       control_debug: {source: controller/control_debug, queue_size: 100000}
       planning_result: {source: trajectory_planner/planning_result, queue_size: 10}
       vehicle_signal_command: {source: signal_decider/vehicle_signal_command, queue_size: 100000}
-    outputs: [vehicle_state, vehicle_signal_status, sim_status, diagnostics]
+    outputs: [vehicle_state, vehicle_signal_status, ground_truth_objects, sim_status, diagnostics]
 
   - id: evaluator
     path: ${PYTHON}

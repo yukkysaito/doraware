@@ -40,7 +40,7 @@ verified in closed loop on a simulated vehicle, reproducibly.
 |---|---|---|
 | Planning | State Lattice planner plugin (parking), path → time-based trajectory generation, turn indicator / hazard light decision | Diffusion Planner and other trajectory-output planners, lane driving |
 | Control | LTV-MPC plugin (OSQP): acceleration and front-wheel steering, gear manager, delay compensation, safe fallback | |
-| Localization / Perception | — (the simulator provides ground truth) | localization, perception, sensor simulation |
+| Localization / Perception | perception message contract (`PerceivedObjects`); the simulator publishes ground truth in it, and the GUI draws any perception output | localization, perception, sensor simulation |
 | Simulation | Godot 4.7 backend: planar vehicle with tire model, actuator delays and limits, gears, turn indicators and hazard lights, collisions, deterministic lockstep, 3D GUI | richer scenes, traffic, sensors |
 | Evaluation | closed-loop scenario suites, regression baseline, MCAP recording, replay | |
 

@@ -137,6 +137,19 @@ def test_trajectory_planner_dataflow_matches_the_default_pipeline():
     assert r1["end_sim_time"] == r2["end_sim_time"] and len(a) > 100 and np.array_equal(a, b)
 
 
+def test_trajectory_planner_extra_inputs_arrive_in_lockstep():
+    """A trajectory planner plugin (loaded by file path) that declares an `objects` input gets the
+    simulator's ground-truth objects of every planner tick before it computes that tick."""
+    probe = Path(__file__).parent / "plugins" / "objects_probe.py"
+    r = run_scenario("B2", OUT / "objects_probe", [f"planning.trajectory_planner.type={probe}:ObjectsProbe"],
+                     False, 42, False, dataflow=REPO_ROOT / "dataflows" / "trajectory_planner.yml")
+    _assert_goal(r, r["metrics"])
+    log = json.loads((Path(r["run_dir"]) / "objects_probe.json").read_text())
+    scene = json.loads((Path(r["run_dir"]) / "scenario.json").read_text())
+    assert len(log) > 100 and scene["scenario_id"] == "B2"
+    assert all(stamp == t and n > 0 for t, stamp, n in log), log[:5]
+
+
 def test_solver_failure_safe_stop():
     r, m = _run("fault_solver", overrides=["fault_injection.solver_failure_after=6.0"], record=False)
     assert r["outcome"] in ("timeout", "stopped") and m["collision_count"] == 0

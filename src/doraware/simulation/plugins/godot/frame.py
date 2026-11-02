@@ -21,7 +21,8 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from doraware.core.geometry import wrap_angle
-from doraware.interfaces import (Gear, Header, Pose, SimulationScene, TurnIndicator, Twist, Vector3,
+from doraware.interfaces import (Gear, Header, PerceivedObjects, Pose, SimulationScene, TurnIndicator, Twist,
+                                 Vector3,
                                  VehicleParameters, VehicleSignalCommand, VehicleSignalStatus, VehicleState,
                                  to_ns)
 
@@ -170,6 +171,18 @@ def state_to_vehicle_state(state: Dict, header: Optional[Header] = None) -> Vehi
     )
 
 
+def object_boxes(objects: PerceivedObjects) -> List[Dict[str, float]]:
+    """Perceived objects (map) -> Godot boxes ``{x, z, rot_y, y, length, width, height, cls, id}``."""
+    out = []
+    for i in range(len(objects)):
+        p = map_to_godot_pose(objects.x[i], objects.y[i], objects.yaw[i])
+        out.append({"x": p["x"], "z": p["z"], "rot_y": p["rot_y"], "y": float(objects.z[i]),
+                    "length": float(objects.length[i]), "width": float(objects.width[i]),
+                    "height": float(objects.height[i]), "cls": int(objects.classification[i]),
+                    "id": int(objects.object_id[i])})
+    return out
+
+
 def state_to_signal_status(state: Dict, header: Optional[Header] = None) -> VehicleSignalStatus:
     """Godot ``state`` reply -> :class:`VehicleSignalStatus` (no frame conversion needed)."""
     if header is None:
@@ -191,9 +204,11 @@ def step_request(n: int, accel: float, steer: float, gear: int, emergency: bool 
     return {"type": "step", "n": int(n), "command": command}
 
 
-def viz_request(planned=(), predicted=(), path=None, info: Optional[Dict] = None, path_gear=()) -> Dict:
+def viz_request(planned=(), predicted=(), path=None, info: Optional[Dict] = None, path_gear=(),
+                objects: Optional[PerceivedObjects] = None) -> Dict:
     """``viz`` request from map-frame (x, y) polylines and HUD values (``info``:
-    label -> number / string / bool). ``path_gear``: Gear per path point."""
+    label -> number / string / bool). ``path_gear``: Gear per path point.
+    ``objects``: perceived objects to draw (boxes in the Godot frame)."""
     msg = {"type": "viz",
            "planned": map_to_godot_polyline(_as_points(planned)),
            "predicted": map_to_godot_polyline(_as_points(predicted)),
@@ -201,6 +216,8 @@ def viz_request(planned=(), predicted=(), path=None, info: Optional[Dict] = None
     if path is not None:
         msg["path"] = map_to_godot_polyline(_as_points(path))
         msg["path_gear"] = [int(g) for g in path_gear]
+    if objects is not None:
+        msg["objects"] = object_boxes(objects)
     return msg
 
 

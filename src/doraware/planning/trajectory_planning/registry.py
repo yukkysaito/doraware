@@ -20,6 +20,14 @@ from doraware.interfaces import PlanningRequest, PlanningResult, Trajectory, Veh
 
 
 class TrajectoryPlanner(Protocol):
+    #: Extra node inputs the planner needs (input id -> message class), e.g.
+    #: ``{"objects": PerceivedObjects}``. Optional; the node delivers each through
+    #: ``on_input`` and, in lockstep, waits for the message of the current tick.
+    inputs: Dict[str, type]
+
+    def on_input(self, name: str, msg: Any) -> None:
+        """A message of a declared extra input (optional when there are none)."""
+
     def plan(self, request: PlanningRequest, state: VehicleState, t_ns: int) -> Optional[PlanningResult]:
         """Take a new request at planner tick ``t_ns`` (may block: planning is wall time).
         Return the outcome for evaluation and visualization (status, and a path if

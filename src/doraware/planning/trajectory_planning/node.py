@@ -14,6 +14,7 @@ import time
 from typing import Optional
 
 from doraware.core.clock import RateClock
+from doraware.core.lockstep import InputBarrier
 from doraware.core.node import NodeRuntime
 from doraware.interfaces import DiagnosticLevel, PlanningRequest, PlanningStatus, VehicleState, to_sec
 from doraware.planning.trajectory_planning.registry import make_trajectory_planner
@@ -27,6 +28,10 @@ def main() -> None:
     ticks = RateClock(timing, "planner_hz")
     silence_after = rt.cfg["fault_injection"].get("planner_silence_after")
     planner = make_trajectory_planner(rt.cfg)
+    # extra inputs declared by the plugin (e.g. objects): delivered in lockstep, others ignored
+    extra = dict(getattr(planner, "inputs", None) or {})
+    rt.inputs.update(extra)
+    barriers = [InputBarrier(rt, name, lambda msg, n=name: planner.on_input(n, msg)) for name in extra]
     pending: Optional[PlanningRequest] = None
     planned = False
     gave_up = False
@@ -40,12 +45,19 @@ def main() -> None:
         if ev["id"] == "planning_request":
             pending = rt.decode(ev)
             continue
+        if ev["id"] != "vehicle_state":
+            for b in barriers:
+                if b.accepts(ev):
+                    b.take(ev)
+            continue       # inputs the plugin did not declare are ignored
         state: VehicleState = rt.decode(ev)
         t_ns = state.header.stamp
         if not ticks.is_tick(t_ns):
             continue
         if silence_after is not None and to_sec(t_ns) >= float(silence_after):
             continue  # fault injection: the planning pipeline went silent
+        for b in barriers:
+            b.wait(t_ns, t_ns)        # the plugin sees the inputs of this tick
         if not planned and pending is None and not gave_up:
             got, timed_out = rt.wait_for(lambda e: e["id"] == "planning_request",
                                          float(timing["planning_wall_timeout"]))
