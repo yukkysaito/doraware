@@ -53,6 +53,8 @@ MAX_ITERATIONS = 8           # successive QPs refining the jerk linearisation sp
 GROWTH = 1.3                 # v_ref of the next iteration = GROWTH * |v| of the current one
 V_FLOOR = 0.1                # [m/s] floor of the speed used in the time weights
 CONVERGENCE = 0.005          # stop when the duration improves by less than 0.5 %
+RELAXED_EPS = 1e-5           # second attempt when the strict QP does not converge (long paths)
+RELAXED_MAX_ITER = 200000
 _C_JERK_V = 6.0 ** (2.0 / 3.0) / 2.0
 
 
@@ -137,31 +139,40 @@ def optimize_speed(s: np.ndarray, kappa: np.ndarray, delta: np.ndarray, v_max: f
         da = np.minimum(lim.max_jerk * h / np.maximum(v_ref, 1e-9), lim.max_acceleration + lim.max_deceleration)
         return np.concatenate([np.zeros(n), -dec, -da]), np.concatenate([cap, acc, da])
 
-    best_b, best_T, status = None, np.inf, "not solved"
-    cap = seed.copy()
-    try:
-        solver = osqp.OSQP()
-        lo, hi = bounds(cap)
-        solver.setup(P=P, q=time_weights(seed), A=A, l=lo, u=hi, verbose=False, eps_abs=1e-7, eps_rel=1e-7,
-                     max_iter=20000, polishing=True, warm_starting=True)
-        for it in range(iterations):
-            if it:
-                lo, hi = bounds(cap)
-                solver.update(q=time_weights(best_b if best_b is not None else seed), l=lo, u=hi)
-            res = solver.solve(raise_error=False)
-            status = str(res.info.status)
-            if res.x is None or not np.all(np.isfinite(res.x)) or "solved" not in status:
-                break
-            b = accel_pass(np.clip(np.asarray(res.x, dtype=float), 0.0, cap), acc, dec, h)
-            b[0] = b[-1] = 0.0
-            T = _duration(b, h)
-            if T < best_T * (1.0 - CONVERGENCE):
-                best_b, best_T = b, T
-            elif best_b is not None:
-                break
-            cap = np.minimum(seed, GROWTH * GROWTH * b + 1e-4)
-    except Exception as exc:  # pragma: no cover - solver failure -> conservative fallback
-        status = f"osqp error: {exc!r}"
+    def successive_qp(eps: float, max_iter: int):
+        best_b, best_T, status = None, np.inf, "not solved"
+        cap = seed.copy()
+        try:
+            solver = osqp.OSQP()
+            lo, hi = bounds(cap)
+            solver.setup(P=P, q=time_weights(seed), A=A, l=lo, u=hi, verbose=False, eps_abs=eps, eps_rel=eps,
+                         max_iter=max_iter, polishing=True, warm_starting=True)
+            for it in range(iterations):
+                if it:
+                    lo, hi = bounds(cap)
+                    solver.update(q=time_weights(best_b if best_b is not None else seed), l=lo, u=hi)
+                res = solver.solve(raise_error=False)
+                status = str(res.info.status)
+                if res.x is None or not np.all(np.isfinite(res.x)) or "solved" not in status:
+                    break
+                b = accel_pass(np.clip(np.asarray(res.x, dtype=float), 0.0, cap), acc, dec, h)
+                b[0] = b[-1] = 0.0
+                T = _duration(b, h)
+                if T < best_T * (1.0 - CONVERGENCE):
+                    best_b, best_T = b, T
+                elif best_b is not None:
+                    break
+                cap = np.minimum(seed, GROWTH * GROWTH * b + 1e-4)
+        except Exception as exc:  # pragma: no cover - solver failure -> next attempt / fallback
+            status = f"osqp error: {exc!r}"
+        return best_b, status
+
+    # strict settings first (all parking paths solve here, results unchanged); long
+    # paths (roads) can exceed the iteration budget, so retry with a looser tolerance
+    best_b, status = successive_qp(1e-7, 20000)
+    if best_b is None:
+        best_b, status2 = successive_qp(RELAXED_EPS, RELAXED_MAX_ITER)
+        status = f"{status}; relaxed: {status2}"
     b = best_b
     if b is None:
         # fallback (solver failure): a slow, scaled-down seed

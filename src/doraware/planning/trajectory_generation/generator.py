@@ -152,7 +152,14 @@ class TrajectoryGenerator:
         if self.profile is not None:
             info["plan_start_time"] = self.plan_start_ns * 1e-9
             info["plan_duration"] = self.profile.duration
+            info["speed_profile_fallback"] = self.speed_profile_fallback
         return info
+
+    @property
+    def speed_profile_fallback(self) -> bool:
+        """A segment's speed QP did not solve and a slow conservative profile is used."""
+        status = (self.profile.summary().get("solver_status") or []) if self.profile is not None else []
+        return any("fallback" in str(s) for s in status)
 
     @property
     def unexpected_failure(self) -> bool:

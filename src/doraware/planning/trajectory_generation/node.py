@@ -78,7 +78,8 @@ def main() -> None:
         rt.send("trajectory", traj)
         if not status_sent and gen.has_result:
             info = gen.status_report()
-            level = DiagnosticLevel.ERROR if gen.unexpected_failure else DiagnosticLevel.OK
+            level = DiagnosticLevel.ERROR if gen.unexpected_failure else \
+                DiagnosticLevel.WARN if gen.speed_profile_fallback else DiagnosticLevel.OK
             rt.diagnose(t_ns, level, str(info.get("message", "")), output="trajectory_status",
                         **{k: v for k, v in info.items() if k != "message"})
             status_sent = True

@@ -87,7 +87,10 @@ def main() -> None:
                             status=res.status.name, planning_time=res.planning_time, wall_time=wall)
             info = {} if failed else planner.diagnostics()
             ok = bool(info.get("trajectory_ok", True))
-            rt.diagnose(t_ns, DiagnosticLevel.OK if ok or res is None or not res.success else DiagnosticLevel.ERROR,
+            level = DiagnosticLevel.OK if ok or res is None or not res.success else DiagnosticLevel.ERROR
+            if level == DiagnosticLevel.OK and info.get("speed_profile_fallback"):
+                level = DiagnosticLevel.WARN       # slow conservative speed profile: report it
+            rt.diagnose(t_ns, level,
                         str(info.get("message", "")), output="trajectory_status",
                         **{k: v for k, v in info.items() if k != "message"})
             pending, planned = None, True

@@ -34,6 +34,12 @@ def _lanelet2(params: Dict[str, Any]) -> MapLoader:
     return Lanelet2Loader(**params)
 
 
+@MAP_LOADERS.register("opendrive")
+def _opendrive(params: Dict[str, Any]) -> MapLoader:
+    from doraware.maps.plugins.opendrive import OpenDriveLoader
+    return OpenDriveLoader(**params)
+
+
 def load_lane_map(path: str, loader: str = "yaml", params: Optional[Dict[str, Any]] = None) -> LaneMap:
     lanes = MAP_LOADERS.create(loader, dict(params or {})).load(str(path))
     lanes.validate()

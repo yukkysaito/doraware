@@ -5,7 +5,7 @@ import time
 import numpy as np
 import pytest
 
-from doraware.core.config import load_config
+from doraware.core.config import REPO_ROOT, load_config
 from doraware.interfaces import Gear
 from doraware.planning.trajectory_generation.limits import ProfileLimits
 from doraware.planning.trajectory_generation.path_processing import build_segments, split_at_cusps
@@ -154,3 +154,18 @@ def test_generation_time():
     elapsed = time.perf_counter() - t
     print(f"profile generation ({sum(p[2] for p in PARKING) * 2:.0f} m path): {elapsed * 1e3:.1f} ms")
     assert elapsed < 1.0
+
+
+def test_long_curved_road_path_solves_within_limits():
+    """A 45 m road path with a 15 m curve (~900 nodes) exceeds the strict QP budget;
+    the relaxed retry must solve it (no slow fallback) within all limits."""
+    from doraware.evaluation.scenarios.road import RoadScenarios
+    from doraware.interfaces import Header, Pose, VehicleState
+    from doraware.planning.trajectory_planning.plugins.lane_follow.planner import LaneFollow
+    cfg = load_config(path=REPO_ROOT / "configs" / "road.yaml")
+    req = RoadScenarios().build("R2", 42, cfg).request
+    lf = LaneFollow(cfg["planning"]["trajectory_planner"]["lane_follow"], cfg)
+    lf.plan(req, VehicleState(header=Header(stamp=0), pose=Pose.from_xyyaw(req.start.x, req.start.y, req.start.yaw)), 0)
+    assert not lf.gen.speed_profile_fallback, lf.gen.profile.summary()["solver_status"]
+    assert lf.gen.profile.duration < 30.0
+    check_limits(sample_profile(lf.gen.profile), lf.gen.limits)

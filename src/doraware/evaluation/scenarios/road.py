@@ -7,6 +7,8 @@ route and scripted traffic (built in code, no external data).
     R4  two-lane road, an oncoming car passes in the other lane
     R5  a Lanelet2 map file (data/maps/two_lane_road.osm): two lanelets in a row,
         a car parked in the neighbouring lane
+    R6  an OpenDRIVE map file (data/maps/curve_road.xodr): straight - 90 degree
+        left arc - straight over three linked roads
 
 They exercise the lane / route / object interfaces end to end with the
 ``lane_follow`` trajectory planner (configs/road.yaml).
@@ -90,6 +92,9 @@ def _roads() -> Dict[str, _Road]:
                     [], map_file="data/maps/two_lane_road.osm", map_loader="lanelet2", route_ids=[1001, 1003],
                     start=(3.0, 0.0, 0.0), goal=(45.0, 0.0, 0.0),
                     actors=[_Actor(ObjectClass.CAR, (4.5, 1.8, 1.5), [(0.0, 22.0, LANE_WIDTH, 0.0)])]),
+        "R6": _Road("OpenDRIVE map", "An OpenDRIVE map: straight, a 90 degree left arc, straight (three roads).",
+                    [], map_file="data/maps/curve_road.xodr", map_loader="opendrive",
+                    route_ids=[1049, 2049, 3049], start=(2.0, 0.0, 0.0), goal=(31.75, 28.0, math.pi / 2)),
     }
 
 

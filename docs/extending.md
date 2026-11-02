@@ -242,10 +242,13 @@ localization or prediction node subscribes to them directly.
 
 Lane map files are read by map loader plugins (`maps/registry.py`, entry point
 `doraware.map_loaders`) into a `LaneMap`. Built in: `lanelet2` (Lanelet2 OSM XML,
-`local_x`/`local_y` or lat/lon, without the lanelet2 library; `maps/plugins/lanelet2_osm.py`)
-and `yaml` (a simple documented format, reader and writer). Another format, for example
-OpenDRIVE, is one more loader. Scenario sources call `load_lane_map(path, type)`; road
-scenario R5 drives on `data/maps/two_lane_road.osm`.
+`local_x`/`local_y` or lat/lon, without the lanelet2 library; `maps/plugins/lanelet2_osm.py`),
+`opendrive` (a documented subset of .xodr: line / arc / spiral reference lines, lane
+sections, polynomial widths and lane offsets, driving lanes, road links;
+`maps/plugins/opendrive.py`) and `yaml` (a simple documented format, reader and writer).
+Another format is one more loader. Scenario sources call `load_lane_map(path, type)`;
+road scenarios R5 and R6 drive on `data/maps/two_lane_road.osm` and
+`data/maps/curve_road.xodr`.
 
 Today's parking planner plugin takes the occupancy grid of the `PlanningRequest` and does not
 read objects; a planner that does subscribes to `objects` itself (for example as a
