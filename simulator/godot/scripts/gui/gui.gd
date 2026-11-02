@@ -25,7 +25,7 @@ const CLASS_NAMES := ["unknown", "car", "truck", "bus", "motorcycle", "bicycle",
 	"static"]
 
 var world := WorldView.new()
-var car := VehicleView.new()
+var car: Node3D = null      # car model, rebuilt under each new physics body
 var rig := CameraRig.new()
 var hud := Hud.new()
 var info: Dictionary = {}
@@ -68,8 +68,9 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Reset: rebuild the world and the car model for the new scene.
 func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D) -> void:
 	world.build(scene, vp, vehicle.global_transform)
-	if car.get_parent() != null:
-		car.get_parent().remove_child(car)
+	# the car model lives under the physics body, which main.gd frees on every reset:
+	# build a new one for the new body
+	car = VehicleView.new()
 	vehicle.add_child(car)
 	car.build(vp)
 	_trail.clear()
@@ -110,7 +111,8 @@ func add_trail_point(x: float, z: float) -> void:
 
 func update_vehicle(vehicle: Node, s: Dictionary) -> void:
 	var dt := get_process_delta_time()
-	car.update_from(vehicle, s, dt)
+	if is_instance_valid(car) and car.get_parent() == vehicle:
+		car.update_from(vehicle, s, dt)
 	hud.update_from(vehicle, s, info, dt)
 
 

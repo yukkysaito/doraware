@@ -387,12 +387,15 @@ def test_gui_matches_headless(sim):
     try:
         gui.send_viz(planned=[(0, 0), (5, 1)], predicted=[(0, 0), (2, 0.5)], path=[(0, 0), (9, 9)],
                      info={"scenario": "gui test"})
+        import time
         from doraware.interfaces import Header
         from doraware.simulation.ground_truth import scene_objects
-        boxes = scene([[4.0, 2.0, 0.3, 4.5, 1.8], [-3.0, -4.0, 0.0, 0.6, 0.6]])
+        boxes = scene(-6.0, 0.0, 0.0, obstacles=[[4.0, 2.0, 0.3, 4.5, 1.8], [-1.0, -3.0, 0.0, 0.6, 0.6]])
+        gui.reset(boxes, actuator(), HZ, 0)
         gui.send_viz(objects=scene_objects(boxes, Header()))            # perception overlay (GUI only)
         for cam in range(4):
             gui.screenshot(str(LOG_DIR / f"test_godot_gui_camera{cam}.png"), cam)
+        time.sleep(2.0)                                                  # the GUI renders while idle
         c = _scripted_run(gui)
     finally:
         gui.close()
