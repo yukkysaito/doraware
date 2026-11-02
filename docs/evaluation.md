@@ -23,11 +23,12 @@ criteria are defined in [testing.md](testing.md).
 | pytest (148 unit, 23 Godot integration, 17 end-to-end) | 188 / 188 pass |
 | closed-loop regression vs. baseline | passed |
 
-Latest check (2026-11-03, after the plugin restructuring, the vehicle signals, the startup-race
-fix and the lockstep liveness change; 8 parallel workers): pytest 171 unit, 28 integration and 18
-end-to-end pass; regression passed; **207 / 207** scenarios pass (186 goal reached, median 7 mm /
-0.19°, no collisions, no command timeouts, longest lockstep wait 0.07 s). An earlier run of the same
-code before the liveness change failed N-038 once because of a > 10 s middleware stall (see §4).
+Latest check (2026-11-03, current code: plugin layout, vehicle signals, trajectory planner node,
+perception contract and ground truth, scripted actors; 8 parallel workers): pytest 180 unit,
+30 integration and 24 end-to-end pass; regression passed; **207 / 207** scenarios pass (186 goal
+reached, median 7 mm / 0.19°, no collisions, no command timeouts, longest lockstep wait 0.08 s).
+An earlier run before the lockstep liveness change failed N-038 once because of a > 10 s middleware
+stall (see §4).
 
 By class (fixed scenarios + seed 42):
 
