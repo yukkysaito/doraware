@@ -7,7 +7,9 @@ nodes. They talk only through typed message interfaces, and their algorithms are
 A deterministic physics simulator and an evaluator are part of the platform, so every change can be
 verified in closed loop on a simulated vehicle, reproducibly.
 
-![Closed-loop parking run in the doraware simulator](docs/images/simulator.jpg)
+| Parking (State Lattice planner + MPC) | Lane following (lanes, route, a crossing pedestrian) |
+|---|---|
+| ![Closed-loop parking run in the doraware simulator](docs/images/simulator.jpg) | ![Lane following: the vehicle brakes for a crossing pedestrian](docs/images/road.jpg) |
 
 ```text
                          ┌──────────────── doraware ────────────────┐
