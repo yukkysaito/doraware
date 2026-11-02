@@ -65,14 +65,16 @@ func _unhandled_input(event: InputEvent) -> void:
 				hud.toggle_help()
 
 
-## Reset: rebuild the world and the car model for the new scene.
-func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D) -> void:
+## Reset: rebuild the world, the car model and the actor models for the new scene.
+func build_scene(scene: Dictionary, vp: Dictionary, vehicle: Node3D, actors: Array = []) -> void:
 	world.build(scene, vp, vehicle.global_transform)
 	# the car model lives under the physics body, which main.gd frees on every reset:
 	# build a new one for the new body
 	car = VehicleView.new()
 	vehicle.add_child(car)
 	car.build(vp)
+	for a in actors:
+		_build_actor_visual(a)
 	_trail.clear()
 	info = {}
 	for m in [_path_mesh, _traj_mesh, _pred_mesh, _trail_mesh, _objects_mesh]:
@@ -138,6 +140,38 @@ func _process(_delta: float) -> void:
 		_shots.pop_front()
 		if _shot_restore >= 0:
 			rig.set_mode(_shot_restore)
+
+
+## Visual model of a scripted actor, attached to its kinematic body (origin:
+## box centre on the ground): vehicles reuse the car model, other classes are
+## simple shapes in their class colour.
+func _build_actor_visual(a: Node3D) -> void:
+	var cls := clampi(int(a.cls), 0, CLASS_COLORS.size() - 1)
+	var c: Color = CLASS_COLORS[cls]
+	var size: Vector3 = a.size
+	if cls >= 1 and cls <= 3:          # car, truck, bus
+		var L := size.x
+		var vp := {"wheel_base": L * 0.6, "front_overhang": L * 0.22, "rear_overhang": L * 0.18,
+			"wheel_tread": maxf(size.z - 0.3, 0.5), "left_overhang": 0.15, "right_overhang": 0.15,
+			"vehicle_height": size.y}
+		var view := VehicleView.new()
+		view.position = Vector3(-(vp.wheel_base + vp.front_overhang - vp.rear_overhang) / 2.0, 0, 0)
+		a.add_child(view)
+		view.build(vp, c.darkened(0.15))
+		return
+	var mi := MeshInstance3D.new()
+	if cls >= 4 and cls <= 7:          # motorcycle, bicycle, pedestrian, animal
+		var cap := CapsuleMesh.new()
+		cap.radius = minf(size.x, size.z) / 2.0
+		cap.height = maxf(size.y, cap.radius * 2.0)
+		mi.mesh = cap
+	else:
+		var box := BoxMesh.new()
+		box.size = size
+		mi.mesh = box
+	mi.material_override = D.mat(c)
+	mi.position = Vector3(0, size.y / 2.0, 0)
+	a.add_child(mi)
 
 
 ## Perceived objects (a perception component wired into the sim bridge): box

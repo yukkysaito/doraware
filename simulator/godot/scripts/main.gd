@@ -12,6 +12,7 @@ extends Node3D
 
 const Protocol = preload("res://scripts/protocol.gd")
 const Vehicle = preload("res://scripts/sim/vehicle.gd")
+const Actor = preload("res://scripts/sim/actor.gd")
 const Gui = preload("res://scripts/gui/gui.gd")
 
 const GUI_WAIT_USEC := 4000
@@ -22,6 +23,7 @@ var headless := true
 var vehicle: RigidBody3D = null
 var gui: Node = null                   # GUI only (display; never touches physics)
 var obstacles: Array[Node] = []
+var actors: Array[Node] = []
 var dt := 0.01
 var step_count := 0
 var steps_left := 0
@@ -112,6 +114,8 @@ func _physics_process(_delta: float) -> void:
 
 
 func _do_step() -> void:
+	for a in actors:
+		a.move_to((step_count + 1) * dt)     # actors at the pose of the end of this step
 	vehicle.physics_step(command)
 	step_count += 1
 	steps_left -= 1
@@ -137,6 +141,10 @@ func _send_state() -> void:
 	s["time"] = step_count * dt
 	s["contacts"] = contacts
 	s["contact_names"] = contact_names
+	var poses := []
+	for a in actors:
+		poses.append([a.actor_id, a.position.x, a.position.z, a.rotation.y])
+	s["actors"] = poses
 	s["step_wall_time"] = (Time.get_ticks_usec() - _chunk_t0) * 1e-6
 	proto.send(s)
 	last_state = s
@@ -162,11 +170,19 @@ func _reset(msg: Dictionary) -> void:
 	for o in obstacles:
 		o.free()
 	obstacles.clear()
+	for a in actors:
+		a.free()
+	actors.clear()
 	var scene: Dictionary = msg.get("scene", {})
 	var i := 0
 	for ob in scene.get("obstacles", []):
 		obstacles.append(_make_obstacle(ob, i))
 		i += 1
+	for spec in scene.get("actors", []):
+		var actor := Actor.new()
+		actor.setup(spec)          # pose before entering the world: no spurious contact at the origin
+		add_child(actor)
+		actors.append(actor)
 	var init: Dictionary = msg.get("initial", {})
 	vehicle = Vehicle.new()
 	vehicle.name = "ego"
@@ -176,7 +192,7 @@ func _reset(msg: Dictionary) -> void:
 	add_child(vehicle)
 	vehicle.body_entered.connect(_on_body_entered)
 	if gui != null:
-		gui.build_scene(scene, msg.get("vehicle", {}), vehicle)
+		gui.build_scene(scene, msg.get("vehicle", {}), vehicle, actors)
 
 
 func _make_obstacle(ob: Dictionary, idx: int) -> StaticBody3D:
@@ -200,7 +216,7 @@ func _make_obstacle(ob: Dictionary, idx: int) -> StaticBody3D:
 
 
 func _on_body_entered(body: Node) -> void:
-	if body.is_in_group("obstacle"):
+	if body.is_in_group("obstacle") or body.is_in_group("actor"):
 		contacts += 1
 		if not contact_names.has(String(body.name)):
 			contact_names.append(String(body.name))

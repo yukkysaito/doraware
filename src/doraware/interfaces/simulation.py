@@ -6,7 +6,7 @@ from enum import IntEnum
 
 import numpy as np
 
-from doraware.interfaces.common import F64Array, Header, Pose2D
+from doraware.interfaces.common import F64Array, Header, I8Array, I64Array, Pose2D
 from doraware.interfaces.vehicle import VehicleParameters
 
 
@@ -24,7 +24,7 @@ class SimulationStatus:
     state: SimulationState = SimulationState.INITIALIZING
     step_count: int = 0
     physics_dt: float = 0.01
-    collision_count: int = 0                # cumulative physics contacts with obstacles
+    collision_count: int = 0                # cumulative physics contacts with obstacles and actors
     collision_objects: str = ""             # comma separated names of contacted bodies
     step_wall_time: float = 0.0             # wall time of the last physics chunk [s]
     command_timeouts: int = 0               # cumulative expired-command events
@@ -33,7 +33,16 @@ class SimulationStatus:
 
 @dataclass
 class SimulationScene:
-    """Everything the simulator needs to (re)set a scenario; no planner data."""
+    """Everything the simulator needs to (re)set a scenario; no planner data.
+
+    Static obstacles are boxes (centre, yaw, length along yaw, width; common
+    height). **Actors** are scripted traffic participants: actor ``i`` has an
+    id, an ``ObjectClass`` and a box size, and moves through its waypoints
+    (``waypoint_actor == i``, in increasing ``waypoint_time`` [s, sim]),
+    linearly interpolated in position and yaw. Before its first waypoint an
+    actor stands at it, after its last one it stands still. Actors follow
+    their script and do not react; contacts with them count as collisions.
+    """
     header: Header = field(default_factory=Header)
     scenario_id: str = ""
     map_xmin: float = 0.0
@@ -49,3 +58,13 @@ class SimulationScene:
     initial_pose: Pose2D = field(default_factory=Pose2D)
     goal_pose: Pose2D = field(default_factory=Pose2D)
     vehicle: VehicleParameters = field(default_factory=VehicleParameters)
+    actor_id: I64Array = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    actor_class: I8Array = field(default_factory=lambda: np.zeros(0, dtype=np.int8))
+    actor_length: F64Array = field(default_factory=lambda: np.zeros(0))
+    actor_width: F64Array = field(default_factory=lambda: np.zeros(0))
+    actor_height: F64Array = field(default_factory=lambda: np.zeros(0))
+    waypoint_actor: I64Array = field(default_factory=lambda: np.zeros(0, dtype=np.int64))
+    waypoint_time: F64Array = field(default_factory=lambda: np.zeros(0))
+    waypoint_x: F64Array = field(default_factory=lambda: np.zeros(0))
+    waypoint_y: F64Array = field(default_factory=lambda: np.zeros(0))
+    waypoint_yaw: F64Array = field(default_factory=lambda: np.zeros(0))

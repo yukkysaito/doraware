@@ -5,7 +5,7 @@
 | Level | Location | What | Runs |
 |---|---|---|---|
 | Unit | `tests/unit/<package>/` (mirrors `src/doraware/`; shared fixtures in `tests/helpers/`) | interfaces/codec, clock & coordinator, plugin registries (built-in and entry points), scenario conversion (grid ⇄ boxes exact), frame transforms, planner adapter, trajectory generator limits, signal decision (both policies), MPC/controller on a Python plant, judge/metrics | `pytest tests/unit` |
-| Integration | `tests/integration` (`-m godot`) | Godot vehicle through `GodotSimulator` (no Dora): directions/signs, rear-axle radius, actuator responses, gear logic, signal latching / flasher / hazard priority / no effect on motion, collisions, determinism, GUI = headless (all cameras rendered), no Godot script errors | `pytest tests/integration` |
+| Integration | `tests/integration` (`-m godot`) | Godot vehicle through `GodotSimulator` (no Dora): directions/signs, rear-axle radius, actuator responses, gear logic, signal latching / flasher / hazard priority / no effect on motion, scripted actors (same pose as the Python model at every step, contacts, determinism), collisions, determinism, GUI = headless (all cameras rendered), no Godot script errors | `pytest tests/integration` |
 | End-to-end closed loop | `tests/e2e` (`-m e2e`) + runner | full Dora dataflow + Godot: B2, timing variants, fault injection, determinism (also with a late simulator start), vehicle signals, replay | `pytest tests/e2e -m e2e`, `doraware run` |
 | Scenario suites | runner | all 107 fixed scenarios + 100 seeded random scenarios | `scripts/test_all.sh` |
 | Regression | runner + baseline | regression set vs. `tests/regression/baseline.json` | `scripts/test_regression.sh` |

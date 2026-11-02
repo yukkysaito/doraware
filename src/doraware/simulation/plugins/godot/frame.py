@@ -104,6 +104,23 @@ def obstacle_boxes(scene: SimulationScene) -> List[Dict[str, float]]:
     return out
 
 
+def actor_specs(scene: SimulationScene) -> List[Dict]:
+    """Scene actors (map) -> Godot actors ``{id, cls, length, width, height,
+    waypoints: [[t, X, Z, rot_y], ...]}`` sorted by time (the motion model of
+    ``doraware.simulation.actors`` is applied on the Godot side)."""
+    from doraware.simulation.actors import actor_waypoints
+    out = []
+    for i in range(len(scene.actor_id)):
+        wps = []
+        for t, x, y, yaw in actor_waypoints(scene, i):
+            p = map_to_godot_pose(x, y, yaw)
+            wps.append([float(t), p["x"], p["z"], p["rot_y"]])
+        out.append({"id": int(scene.actor_id[i]), "cls": int(scene.actor_class[i]),
+                    "length": float(scene.actor_length[i]), "width": float(scene.actor_width[i]),
+                    "height": float(scene.actor_height[i]), "waypoints": wps})
+    return out
+
+
 def map_bounds_to_godot(xmin: float, xmax: float, ymin: float, ymax: float) -> List[float]:
     """Map bounds -> ``[xmin, xmax, zmin, zmax]`` in Godot (z = -y)."""
     return [float(xmin), float(xmax), float(-ymax), float(-ymin)]
@@ -137,6 +154,7 @@ def reset_request(scene: SimulationScene, actuator: Dict, physics_hz: float, see
         "scene": {
             "bounds": map_bounds_to_godot(scene.map_xmin, scene.map_xmax, scene.map_ymin, scene.map_ymax),
             "obstacles": obstacle_boxes(scene),
+            "actors": actor_specs(scene),
             "goal": map_to_godot_pose(scene.goal_pose.x, scene.goal_pose.y, scene.goal_pose.yaw),
         },
         "initial": init,

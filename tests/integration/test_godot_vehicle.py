@@ -367,6 +367,52 @@ def test_signals_do_not_affect_motion(sim):
     assert drive(False) == drive(True)
 
 
+# ------------------------------------------------------------------ actors
+def _actor_scene():
+    """The ego parked at the origin; a car actor (id 7) drives through it from the
+    left between t = 1 s and 4 s; a pedestrian (id 9) stands aside."""
+    from doraware.interfaces import ObjectClass
+    s = scene()
+    s.actor_id = np.array([7, 9])
+    s.actor_class = np.array([ObjectClass.CAR, ObjectClass.PEDESTRIAN], np.int8)
+    s.actor_length, s.actor_width, s.actor_height = np.array([4.5, 0.5]), np.array([1.8, 0.5]), np.array([1.5, 1.7])
+    s.waypoint_actor = np.array([0, 0, 1])
+    s.waypoint_time = np.array([1.0, 4.0, 0.0])
+    s.waypoint_x, s.waypoint_y = np.array([1.5, 1.5, -6.0]), np.array([12.0, -12.0, 6.0])
+    s.waypoint_yaw = np.array([-math.pi / 2, -math.pi / 2, 0.0])
+    return s
+
+
+def test_actors_follow_the_scene_script_and_collide(sim):
+    from doraware.simulation.actors import actor_states
+    s = _actor_scene()
+    sim.reset(s, actuator(), HZ, 0)
+    hits = None
+    for _ in range(250):
+        st = sim.step(2, 0.0, 0.0, 0)
+        t = st["time"]
+        ref = actor_states(s, t)
+        for (aid, gx, gz, rot), r in zip(st["actors"], ref):
+            assert aid == int(s.actor_id[ref.index(r)])
+            x, y, yaw = gf.godot_to_map_pose(gx, gz, rot)
+            # Godot node transforms are single precision: equal up to float32 rounding
+            assert (x, y) == pytest.approx((r.x, r.y), abs=1e-5) and yaw == pytest.approx(r.yaw, abs=1e-5)
+        if hits is None and st["contacts"] > 0:
+            hits = (t, list(st["contact_names"]))
+    assert hits is not None and hits[1] == ["actor_7"]
+    assert 2.0 < hits[0] < 3.0                                          # when the car reaches the ego
+
+
+def test_actors_are_deterministic(sim):
+    def run():
+        sim.reset(_actor_scene(), actuator(), HZ, 0)
+        out = [sim.step(2, 0.0, 0.0, 0) for _ in range(200)]
+        for o in out:
+            o.pop("step_wall_time")
+        return out
+    assert run() == run()
+
+
 def test_determinism_same_process_and_new_process(sim):
     a = _scripted_run(sim)
     b = _scripted_run(sim)
@@ -391,6 +437,13 @@ def test_gui_matches_headless(sim):
         from doraware.interfaces import Header
         from doraware.simulation.ground_truth import scene_objects
         boxes = scene(-6.0, 0.0, 0.0, obstacles=[[4.0, 2.0, 0.3, 4.5, 1.8], [-1.0, -3.0, 0.0, 0.6, 0.6]])
+        act = _actor_scene()                                             # plus scripted actors
+        for f in ("actor_id", "actor_class", "actor_length", "actor_width", "actor_height", "waypoint_actor",
+                  "waypoint_time", "waypoint_x", "waypoint_y", "waypoint_yaw"):
+            setattr(boxes, f, getattr(act, f))
+        boxes.waypoint_y = np.array([5.0, 5.0, 4.0])                     # keep the car in view
+        boxes.waypoint_x = np.array([-2.0, 8.0, -9.0])
+        boxes.waypoint_yaw = np.array([0.0, 0.0, 0.0])
         gui.reset(boxes, actuator(), HZ, 0)
         gui.send_viz(objects=scene_objects(boxes, Header()))            # perception overlay (GUI only)
         for cam in range(4):

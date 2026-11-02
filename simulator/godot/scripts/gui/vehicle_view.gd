@@ -23,7 +23,7 @@ var _brake_mat: StandardMaterial3D
 var _reverse_mat: StandardMaterial3D
 
 
-func build(vp: Dictionary) -> void:
+func build(vp: Dictionary, paint_color: Color = PAINT) -> void:
 	for c in get_children():
 		c.free()
 	_front_pivots.clear()
@@ -39,7 +39,7 @@ func build(vp: Dictionary) -> void:
 	var x_rear := -ro
 	var zc: float = -(vp.left_overhang - vp.right_overhang) / 2.0
 	var paint := StandardMaterial3D.new()
-	paint.albedo_color = PAINT
+	paint.albedo_color = paint_color
 	paint.metallic = 0.55
 	paint.roughness = 0.32
 	var glass := StandardMaterial3D.new()

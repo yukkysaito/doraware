@@ -131,7 +131,7 @@ The schema is derived from the dataclass annotations, and the metadata carries
 | `OccupancyGrid` | row-major `data[iy*width+ix]`, resolution, origin |
 | `PlanningRequest` | start, goal (`Pose2D`), map, vehicle, opaque `planner_config` JSON |
 | `PlanningResult` | `status` (`PlanningStatus`), message, planning time, `GeometricPath` (x, y, yaw, curvature, gear) |
-| `SimulationScene` | map bounds, obstacle boxes, initial pose, goal pose (for display), vehicle |
+| `SimulationScene` | map bounds, obstacle boxes, initial pose, goal pose (for display), vehicle, scripted actors (id, `ObjectClass`, box size, timed waypoints; linear interpolation by sim time) |
 | `SimulationStatus` | state, step count, physics dt, collision count/objects, command timeouts, longest lockstep wait (wall) |
 | `Diagnostics` | node, level, message, JSON values |
 | `ScenarioDone` | outcome, passed, JSON summary |
@@ -247,8 +247,11 @@ Details fixed by the implementation (`simulator/godot`, `doraware.simulation.plu
   treated as `OFF`). The lamp fields report the lamp outputs during the last
   physics step.
 * `contacts` is the cumulative number of new contacts (Jolt `body_entered`) with
-  obstacle bodies; `contact_names` the unique obstacle names (`obstacle_<i>`,
-  index in the `obstacles` list) in order of first contact.
+  obstacle and actor bodies; `contact_names` the unique names (`obstacle_<i>`,
+  index in the `obstacles` list, or `actor_<id>`) in order of first contact.
+* `reset.scene.actors` lists the scripted actors (`id`, `cls`, box size,
+  `waypoints: [[t, x, z, rot_y], …]`); `state.actors` reports `[[id, x, z, rot_y], …]`
+  (float32 node transforms) for tests.
 * `state` additionally carries `shifting` (gear engagement in progress) and
   `gear_refusals` (cumulative gear requests refused because the car was moving).
 * `viz` (GUI only) updates the overlays: `planned` (trajectory window),
@@ -292,6 +295,12 @@ Details fixed by the implementation (`simulator/godot`, `doraware.simulation.plu
   flash both sides; otherwise only the indicated side flashes.
 * Actuators: dead time (FIFO), first-order lag, rate/jerk limits, angle and
   acceleration limits, optional Gaussian noise (seeded).
+* Actors (scripted traffic participants) are kinematic boxes (`scripts/sim/actor.gd`)
+  moved to their scripted pose at the end of each physics step, before Jolt
+  integrates; the motion model is the one of `doraware.simulation.actors`
+  (an integration test compares them at every step). Contacts with them count as
+  collisions. The ground truth (`ground_truth_objects`) includes them with their
+  velocities (ids `1_000_000 + actor id`).
 * Obstacles are static boxes built from the planner's occupancy grid (merged
   occupied cells), so the simulated world and the planner's map coincide
   exactly. Contacts are counted from the physics engine; the evaluator

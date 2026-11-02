@@ -245,7 +245,10 @@ bridge keeps owning time and the lockstep.
 
 Implement `ScenarioSource` (`evaluation/scenarios/registry.py`). `build` returns a
 `ScenarioBundle` (`evaluation/scenarios/bundle.py`): the `SimulationScene`, the
-`PlanningRequest` and the `ExpectedBehavior` the judge checks. Register it and
+`PlanningRequest` and the `ExpectedBehavior` the judge checks. Traffic goes into the
+scene as scripted actors (`actor_*` and `waypoint_*` arrays: class, size and timed
+waypoints); the simulator moves them deterministically, counts contacts with them as
+collisions, and publishes them in the ground truth objects. Register it and
 select it with `evaluation.scenario_source`. `evaluation/scenarios/parking.py` is
 the reference.
 
