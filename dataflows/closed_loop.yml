@@ -1,0 +1,85 @@
+# Closed-loop dataflow: scenario -> planner -> trajectory generator -> controller -> simulator,
+# plus the signal decider (turn indicators / hazard lights) -> simulator.
+#
+# ${PYTHON} is replaced by the runner with the venv interpreter (absolute path).
+# The runner adds the MCAP recorder itself, subscribed to every output of every
+# node, so new nodes are recorded without editing this file.
+# Large queues: in lockstep mode no message may be dropped.
+nodes:
+  - id: scenario_manager
+    path: ${PYTHON}
+    args: -m doraware.evaluation.scenarios.node
+    inputs:
+      scenario_done: {source: evaluator/scenario_done, queue_size: 10}
+      # Dora 1.1 stops a dataflow after ~120 s without traffic; long plans
+      # (first-use heuristic tables) need this heartbeat.
+      heartbeat: {source: dora/timer/secs/5, queue_size: 1}
+      planner_diagnostics: {source: planner/diagnostics, queue_size: 100}
+      planning_result: {source: planner/planning_result, queue_size: 10}
+    outputs: [scene, planning_request, scenario_info]
+
+  - id: planner
+    path: ${PYTHON}
+    args: -m doraware.planning.node
+    restart_policy: on-failure     # stateless per request; the scenario manager re-sends after a restart
+    max_restarts: 2
+    inputs:
+      planning_request: {source: scenario_manager/planning_request, queue_size: 10}
+    outputs: [planning_result, diagnostics]
+
+  - id: trajectory_generator
+    path: ${PYTHON}
+    args: -m doraware.planning.trajectory_generation.node
+    inputs:
+      planning_request: {source: scenario_manager/planning_request, queue_size: 10}
+      planning_result: {source: planner/planning_result, queue_size: 10}
+      vehicle_state: {source: sim_bridge/vehicle_state, queue_size: 100000}
+    outputs: [trajectory, trajectory_status]
+
+  - id: signal_decider
+    path: ${PYTHON}
+    args: -m doraware.planning.signals.node
+    inputs:
+      vehicle_state: {source: sim_bridge/vehicle_state, queue_size: 100000}
+      trajectory: {source: trajectory_generator/trajectory, queue_size: 100000}
+    outputs: [vehicle_signal_command, diagnostics]
+
+  - id: controller
+    path: ${PYTHON}
+    args: -m doraware.control.node
+    inputs:
+      scene: {source: scenario_manager/scene, queue_size: 10}
+      vehicle_state: {source: sim_bridge/vehicle_state, queue_size: 100000}
+      trajectory: {source: trajectory_generator/trajectory, queue_size: 100000}
+    outputs: [control_command, control_debug, diagnostics]
+
+  - id: sim_bridge
+    path: ${PYTHON}
+    args: -m doraware.simulation.node
+    inputs:
+      scene: {source: scenario_manager/scene, queue_size: 10}
+      control_command: {source: controller/control_command, queue_size: 100000}
+      scenario_done: {source: evaluator/scenario_done, queue_size: 10}
+      trajectory: {source: trajectory_generator/trajectory, queue_size: 100000}
+      control_debug: {source: controller/control_debug, queue_size: 100000}
+      planning_result: {source: planner/planning_result, queue_size: 10}
+      vehicle_signal_command: {source: signal_decider/vehicle_signal_command, queue_size: 100000}
+    outputs: [vehicle_state, vehicle_signal_status, sim_status, diagnostics]
+
+  - id: evaluator
+    path: ${PYTHON}
+    args: -m doraware.evaluation.node
+    inputs:
+      scenario_info: {source: scenario_manager/scenario_info, queue_size: 10}
+      planning_request: {source: scenario_manager/planning_request, queue_size: 10}
+      scene: {source: scenario_manager/scene, queue_size: 10}
+      planning_result: {source: planner/planning_result, queue_size: 10}
+      trajectory: {source: trajectory_generator/trajectory, queue_size: 100000}
+      trajectory_status: {source: trajectory_generator/trajectory_status, queue_size: 100000}
+      vehicle_state: {source: sim_bridge/vehicle_state, queue_size: 100000}
+      control_command: {source: controller/control_command, queue_size: 100000}
+      control_debug: {source: controller/control_debug, queue_size: 100000}
+      sim_status: {source: sim_bridge/sim_status, queue_size: 100000}
+      vehicle_signal_status: {source: sim_bridge/vehicle_signal_status, queue_size: 100000}
+      diagnostics: {source: controller/diagnostics, queue_size: 100000}
+    outputs: [scenario_done]

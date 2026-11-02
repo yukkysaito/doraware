@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# local tools (Godot binary symlink) and run outputs
+tools/
+results/
+out/
+*.mcap
+
+# Godot
+.godot/
+
+# planner submodule caches/outputs
+third_party/state_lattice_based_valet_parking/.cache/
+third_party/state_lattice_based_valet_parking/results/
+
+# editor / agent local state
+.claude/*.local.*
+.claude/settings.local.json

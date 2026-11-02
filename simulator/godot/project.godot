@@ -1,0 +1,48 @@
+; Engine configuration file (Godot 4.7).
+; doraware closed-loop vehicle simulator, started by doraware.simulation.plugins.godot (client.py).
+
+config_version=5
+
+[application]
+
+config/name="doraware"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7")
+run/low_processor_mode=false
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/vsync/vsync_mode=0
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=100
+common/max_physics_steps_per_frame=8
+common/physics_jitter_fix=0.0
+common/physics_interpolation=false
+3d/default_gravity=0.0
+3d/default_linear_damp=0.0
+3d/default_angular_damp=0.0
+3d/sleep_threshold_linear=0.0
+3d/sleep_threshold_angular=0.0
+3d/run_on_separate_thread=false
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="gl_compatibility"
+rendering_device/fallback_to_opengl3=true
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+
+
+
+[threading]
+
+; Jolt job synchronisation over many worker threads costs ~0.3 ms per step
+; for a single body; one worker gives ~3x higher lockstep throughput.
+worker_pool/max_threads=1

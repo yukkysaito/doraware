@@ -1,0 +1,173 @@
+# Default configuration of the closed-loop system.
+#
+# Layout: one section per component package (planning, control, simulation,
+# evaluation, recording) plus the system-wide `timing` and `vehicle` sections.
+# A plugin's own parameters live under its name (planning.planner.<type>,
+# control.controller.<type>, simulation.<backend>), so adding a plugin never
+# touches another plugin's settings.
+#
+# Every node reads this file (path in $DORAWARE_CONFIG); a run may overlay
+# overrides (`doraware run --set key.path=value`). Unknown keys are an error.
+
+timing:
+  physics_hz: 100.0            # simulator fixed physics step
+  controller_hz: 50.0          # control command rate (sim time)
+  planner_hz: 10.0             # trajectory and vehicle signal publication rate (sim time)
+  state_hz: 50.0               # vehicle state publication rate (sim time); multiple of controller_hz not required
+  visualization_hz: 20.0       # rate of visualization updates sent to the simulator GUI (sim time)
+  trajectory_time_step: 0.05   # [s] fixed sample spacing of Trajectory points
+  trajectory_horizon: 5.0      # [s] length of each published Trajectory window
+  trajectory_validity: 1.0     # [s] a trajectory expires this long after its stamp
+  command_validity: 0.1        # [s] a control command expires this long after its stamp
+  lockstep: true               # deterministic step-based coordination (docs/architecture.md §6)
+  lockstep_wall_timeout: 10.0  # [s, wall] max wait for an expected message before declaring a timeout
+  planning_wall_timeout: 600.0 # [s, wall] max wait for the first plan (planning time is not sim time)
+  realtime_factor: 0.0         # 0 = as fast as possible; 1.0 = pace the simulation at wall-clock speed
+
+vehicle:                       # dynamics and actuation (geometry comes from the scenario)
+  # The scenario's max_steer_angle is the PLANNING limit (sent unchanged to the planner).
+  # The physical steering actuator (and the MPC bound) gets this extra authority so the
+  # tracking controller can correct errors on arcs the planner draws at full lock.
+  steering_control_margin: 0.05   # [rad]
+  vehicle_height: 1.5
+  max_steer_rate: 0.6
+  max_acceleration: 1.5
+  max_deceleration: 3.0
+  max_jerk: 3.0
+  mass: 1500.0
+  cog_x: 1.30
+  cog_height: 0.55
+  yaw_inertia: 2500.0
+  tire_friction: 0.9
+  cornering_stiffness: 60000.0
+  actuator:                    # actuator behaviour: emulated by the simulator, compensated by the controller
+    steering_dead_time: 0.0
+    steering_time_constant: 0.05
+    steering_rate_limit: 0.6
+    steering_angle_limit: null   # null = vehicle max_steer_angle
+    acceleration_dead_time: 0.0
+    acceleration_time_constant: 0.05
+    acceleration_limit: 1.5
+    deceleration_limit: 3.0
+    jerk_limit: 10.0
+    gear_shift_time: 0.3         # [s] standstill time needed to engage a gear
+    gear_shift_max_speed: 0.05   # [m/s] gear requests above this speed are refused
+    flasher_frequency: 1.5       # [Hz] turn indicator / hazard flash rate (UN R48: 90 +/- 30 per minute)
+    rolling_resistance: 0.0      # coefficient (force = c * m * g opposing motion)
+    steering_noise_std: 0.0      # [rad] (simulator only)
+    acceleration_noise_std: 0.0  # [m/s^2] (simulator only)
+    noise_seed: 0
+
+planning:
+  planner:
+    type: state_lattice          # a name in planning/registry.py or a `doraware.planners` entry point
+    state_lattice:
+      # Base planner parameters under the scenario's own overrides (the scenario wins).
+      # The planner's deterministic budget is its node-expansion limit (product spec);
+      # its wall-clock limit (default 20 s) is raised so results do not depend on host
+      # load when many closed loops run in parallel (same as upstream run_tests --time-limit).
+      base_config:
+        max_planning_time: 120.0
+        # Goal-accuracy budget allocation (system: 0.10 m / 2.0 deg for the physical car):
+        # planner terminal tolerance 0.05 m / 1.0 deg + tracking allowance 0.05 m / 1.0 deg.
+        # With the planner default (0.10 m / 2.0 deg) the plan alone can use the whole budget.
+        # Scenarios that set their own tolerance (L-*) override this.
+        position_tolerance: 0.05
+        yaw_tolerance: 0.017453292519943295   # 1.0 deg
+      # If planning with the tighter tolerance runs out of budget (timeout / max_expansions;
+      # not a proof, not an exhausted search), re-plan once without these keys (planner defaults).
+      accuracy_fallback_keys: [position_tolerance, yaw_tolerance]
+
+  trajectory_generation:       # GeometricPath -> time-based Trajectory
+    max_forward_speed: 1.5       # [m/s]
+    max_reverse_speed: 1.0       # [m/s]
+    max_acceleration: 0.6        # [m/s^2] planning limits (kept below the actuator limits)
+    max_deceleration: 0.6
+    max_jerk: 1.0                # [m/s^3]
+    max_lateral_acceleration: 0.6
+    max_steer_rate: 0.35         # [rad/s] planning limit for steering transitions (< actuator limit)
+    steer_transition_length: 0.6 # [m] curvature steps are ramped over this distance
+    stop_duration: 1.0           # [s] minimum standstill at a gear change (plus steering time)
+    start_stop_duration: 0.5     # [s] standstill before the first motion (gear engagement; plus steering time)
+    path_resample_ds: 0.05       # [m]
+    revalidation_margin: 0.0     # [m] footprint inflation for the collision revalidation
+    goal_stop_snapping:          # move the final stop onto the goal when the plan ends short/past it on the same line
+      enabled: true
+      max_shift: 0.15            # [m]
+      margin: 0.1                # [m] exact clearance required for an extension (planner safety margin)
+
+  signals:                     # turn indicator / hazard light decision (planning/signals/decider.py)
+    # maneuver_hazard: hazard lights during the whole manoeuvre, no turn indicator (parking);
+    # turn_indicators: indicate upcoming turns, hazard lights only when there is no plan to follow
+    policy: maneuver_hazard
+    lookahead_distance: 6.0      # [m] (turn_indicators) arc length of the upcoming motion that is considered
+    activation_offset: 0.5       # [m] lateral offset of its end point that switches an indicator on
+    deactivation_offset: 0.2     # [m] an active indicator switches off at or below this offset
+    min_hold_time: 1.0           # [s, sim] minimum time between changes of a signal (hazard on is immediate)
+
+control:
+  controller:
+    type: mpc                    # a name in control/registry.py or a `doraware.controllers` entry point
+    mpc:
+      horizon_steps: 30
+      dt: 0.1                    # [s] prediction step
+      weights:
+        longitudinal: 20.0
+        lateral: 60.0
+        yaw: 200.0
+        velocity: 4.0
+        steering: 0.2
+        acceleration: 0.5
+        steering_rate: 2.0
+        jerk: 0.5
+        terminal_scale: 10.0
+        velocity_slack: 1.0e4
+      max_iterations: 4000
+      eps_abs: 1.0e-4
+      eps_rel: 1.0e-4
+      time_limit: 0.02           # [s] OSQP time limit
+      max_speed: 3.0             # [m/s] soft |v| bound in either gear (sign bound comes from the gear)
+      gear_change_speed: 0.03    # [m/s] request a gear only below this speed
+      stop_hold_acceleration: 0.8  # [m/s^2] brake magnitude while holding at standstill
+      fallback_deceleration: 2.0 # [m/s^2] safe-stop deceleration (no valid trajectory / solver failure)
+      max_consecutive_failures: 3  # reuse the previous solution at most this many times
+      delay_compensation: true
+      lag_compensation: true     # add the actuator time constants to the dead times for state prediction
+      stop_position_tolerance: 0.03  # [m] enter standstill hold below this |longitudinal error| (leave above 2x)
+      stop_speed: 0.05           # [m/s] standstill hold may be entered below this speed
+      hold_release_lookahead: 0.3  # [s] release the hold brake this long before the reference departs
+
+simulation:
+  backend: godot                 # a name in simulation/registry.py or a `doraware.simulators` entry point
+  screenshot_times: []           # [s, sim] GUI only: save PNGs into the run directory at these times
+  screenshot_cameras: [top, chase]   # cameras per screenshot time: top, chase, free, overview
+  godot:
+    binary: tools/godot
+    project_dir: simulator/godot
+    headless: true
+    host: 127.0.0.1
+    port: 0                      # 0 = pick a free port
+    connect_timeout: 30.0
+
+evaluation:
+  scenario_source: parking         # a name in evaluation/scenarios/registry.py or a `doraware.scenario_sources` entry point
+  goal_position_tolerance: 0.10    # [m]
+  goal_yaw_tolerance_deg: 2.0
+  final_speed_tolerance: 0.02      # [m/s]
+  settle_time: 1.0                 # [s] standstill required at the goal before declaring success
+  rejection_hold_time: 3.0         # [s] the vehicle must stay still this long after a rejection
+  rejection_max_motion: 0.01       # [m]
+  timeout_margin: 30.0             # [s] beyond the planned duration
+  max_sim_time: 300.0              # [s] absolute cap
+  min_controller_hz: 20.0
+  out_of_bounds_check: true
+
+recording:
+  enabled: true                    # MCAP of every dataflow topic in the run directory
+
+fault_injection:                # all disabled by default (tests enable them)
+  solver_failure_after: null     # [s, sim] force MPC solver failures from this time
+  planner_silence_after: null    # [s, sim] trajectory generator stops publishing from this time
+  controller_silence_after: null # [s, sim] controller stops publishing commands
+  planner_crash_once: false      # the planner process crashes on its first request (Dora restarts it)
+  simulator_start_delay: 0.0     # [s, wall] the sim bridge starts the simulator this late (startup races)

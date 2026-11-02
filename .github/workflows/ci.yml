@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@v5
+      - name: Install
+        run: |
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv -e ".[dev]"
+      - name: Lint
+        run: .venv/bin/ruff check .
+      - name: Unit tests
+        # Godot integration and closed-loop (e2e) tests need the Godot binary and run locally.
+        run: .venv/bin/python -m pytest tests/unit -q
