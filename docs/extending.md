@@ -184,8 +184,10 @@ Inputs a learned planner typically needs are available: the lane map and the rou
 the `PlanningRequest` (`LaneMap`, `Route`), the objects (`PerceivedObjects`, ground
 truth until perception exists) as a declared input, and the ego state. The
 `lane_follow` plugin (`plugins/lane_follow/`) is a complete small example that uses all
-three; `configs/road.yaml` runs it on the `road` scenarios (lanes, route, a crossing
-pedestrian, an oncoming car). Lane maps from Lanelet2 or OpenDRIVE need a loader that
+three and, like a learned planner, recomputes its trajectory every tick: it follows lead
+vehicles at a time gap and stops for other objects in its corridor. `configs/road.yaml`
+runs it on the `road` scenarios (lanes, route, a crossing pedestrian, oncoming and lead
+vehicles, Lanelet2 and OpenDRIVE maps). Lane maps from Lanelet2 or OpenDRIVE need a loader that
 converts them into `LaneMap`; none exists yet.
 
 ## Add a component (perception, localization, prediction, ...)

@@ -40,15 +40,15 @@ verified in closed loop on a simulated vehicle, reproducibly.
 
 | Area | Available now | Planned |
 |---|---|---|
-| Planning | State Lattice planner plugin (parking), path → time-based trajectory generation, trajectory planner node for trajectory-output planners with a lane-following reference plugin (lanes, route, stops for objects), turn indicator / hazard light decision | Diffusion Planner and other learned planners, lane changes, interaction with traffic |
+| Planning | State Lattice planner plugin (parking), path → time-based trajectory generation, trajectory planner node for trajectory-output planners with an online lane-following reference plugin (lanes, route; follows lead vehicles, stops for objects), turn indicator / hazard light decision | Diffusion Planner and other learned planners, lane changes |
 | Control | LTV-MPC plugin (OSQP): acceleration and front-wheel steering, gear manager, delay compensation, safe fallback | |
 | Localization / Perception | perception message contract (`PerceivedObjects`); the simulator publishes ground truth in it, and the GUI draws any perception output | localization, perception, sensor simulation |
 | Simulation | Godot 4.7 backend: planar vehicle with tire model, actuator delays and limits, gears, turn indicators and hazard lights, collisions, scripted traffic participants, ground truth objects, deterministic lockstep, 3D GUI | richer scenes, reactive traffic, sensors |
 | Evaluation | closed-loop scenario suites, regression baseline, MCAP recording, replay | |
 
 With the parking planner, all 107 fixed and 100 random scenarios pass in closed loop, and the
-lane-following reference planner passes the six road scenarios (`configs/road.yaml`, two of them on
-Lanelet2 and OpenDRIVE map files). The median goal
+lane-following reference planner passes the seven road scenarios (`configs/road.yaml`: a crossing
+pedestrian, oncoming and lead vehicles, Lanelet2 and OpenDRIVE map files). The median goal
 error is 7 mm / 0.19° and there are no collisions. See [docs/evaluation.md](docs/evaluation.md).
 
 ## Quick start

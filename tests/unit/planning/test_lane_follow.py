@@ -54,34 +54,61 @@ def test_route_centerline_is_exact_at_start_and_goal():
         route_centerline(r.lanes, r.route, r.start, Pose2D(0.0, 30.0, 0.0))
 
 
-def test_lane_follow_stops_for_a_blocking_object_and_continues():
+def _obj(x, y, vx=0.0, cls=ObjectClass.PEDESTRIAN, size=(0.5, 0.5)):
+    return PerceivedObjects(
+        header=Header(), object_id=np.array([1]), classification=np.array([cls], np.int8),
+        class_probability=np.ones(1), existence_probability=np.ones(1), x=np.array([x]), y=np.array([y]),
+        z=np.array([0.85]), yaw=np.zeros(1), length=np.array([size[0]]), width=np.array([size[1]]),
+        height=np.array([1.7]), velocity_x=np.array([vx]), velocity_y=np.zeros(1), yaw_rate=np.zeros(1))
+
+
+def _planner():
     b = SRC.build("R1", 42, ROAD)
     lf = make_trajectory_planner(ROAD)
     assert isinstance(lf, LaneFollow)
     res = lf.plan(b.request, _state(3.0, 0.0, 0.0, 0.0), 0)
     assert res.status == PlanningStatus.SUCCESS and len(res.path) > 10
-    ped = lambda y: PerceivedObjects(  # noqa: E731
-        header=Header(), object_id=np.array([1]), classification=np.array([ObjectClass.PEDESTRIAN], np.int8),
-        class_probability=np.ones(1), existence_probability=np.ones(1), x=np.array([20.0]), y=np.array([y]),
-        z=np.array([0.85]), yaw=np.zeros(1), length=np.array([0.5]), width=np.array([0.5]), height=np.array([1.7]),
-        velocity_x=np.zeros(1), velocity_y=np.zeros(1), yaw_rate=np.zeros(1))
-    # far away and beside the lane: keep driving
-    lf.on_input("objects", ped(5.0))
-    assert lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.0, 2.0), to_ns(5.0)).longitudinal_velocity.max() > 1.0
-    # in the lane but far enough to brake later: keep driving
-    lf.on_input("objects", ped(0.0))
-    assert lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.5, 2.0), to_ns(5.5)).longitudinal_velocity.max() > 1.0
-    # braking needed now: stop 2 m (stop_margin) before it
-    tr = lf.trajectory_at(_state(13.0, 0.0, 0.0, 6.0, 2.0), to_ns(6.0))
-    assert tr.longitudinal_velocity[-1] == 0.0 and tr.longitudinal_acceleration[0] < 0.0
-    front = tr.x[-1] + b.request.vehicle.wheel_base + b.request.vehicle.front_overhang
-    assert 20.0 - 0.25 - front == pytest.approx(2.0, abs=0.3)
-    # the corridor is clear again: continue only after clear_time at standstill
-    lf.on_input("objects", ped(6.0))
+    return lf, b.request.vehicle
+
+
+def test_lane_follow_drives_to_the_goal_and_stops_there():
+    lf, _ = _planner()
+    tr = lf.trajectory_at(_state(3.0, 0.0, 0.0, 0.0), 0)
+    assert tr.longitudinal_velocity[0] == 0.0 and tr.longitudinal_velocity[-1] > 2.0     # accelerates
+    assert np.all(np.diff(tr.longitudinal_velocity) <= 0.8 * tr.time_step + 1e-9)        # within max_acceleration
+    near = lf.trajectory_at(_state(36.0, 0.0, 0.0, 30.0, 1.0), to_ns(30.0))
+    assert near.longitudinal_velocity[-1] == 0.0 and near.x[-1] == pytest.approx(38.0, abs=2e-3)   # at the goal
+
+
+def test_lane_follow_stops_before_an_object_and_continues_when_clear():
+    lf, vp = _planner()
+    lf.on_input("objects", _obj(20.0, 0.0))
+    tr = lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.0, 2.0), to_ns(5.0))
+    assert tr.longitudinal_velocity[-1] == 0.0
+    front = tr.x[-1] + vp.wheel_base + vp.front_overhang
+    assert 20.0 - 0.25 - front == pytest.approx(2.0, abs=0.05)                             # stop_margin
+    lf.on_input("objects", _obj(20.0, 6.0))                                                # it left the lane
     x_stop = float(tr.x[-1])
+    lf.window = None
     assert lf.trajectory_at(_state(x_stop, 0.0, 0.0, 9.0), to_ns(9.0)).longitudinal_velocity.max() == 0.0
-    tr = lf.trajectory_at(_state(x_stop, 0.0, 0.0, 10.1), to_ns(10.1))
-    assert tr.longitudinal_velocity.max() > 0.5 and tr.x[0] == pytest.approx(x_stop, abs=1e-6)
+    assert lf.trajectory_at(_state(x_stop, 0.0, 0.0, 10.1), to_ns(10.1)).longitudinal_velocity.max() > 1.0
+
+
+def test_lane_follow_follows_a_lead_vehicle():
+    lf, vp = _planner()
+    # the lead's rear is at the desired gap (stop_margin + time_gap * v = 3.8 m) ahead of our front
+    lead_x = 10.0 + vp.wheel_base + vp.front_overhang + 3.8 + 2.25
+    lf.on_input("objects", _obj(lead_x, 0.0, vx=1.2, cls=ObjectClass.CAR, size=(4.5, 1.8)))
+    tr = lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.0, 1.2), to_ns(5.0))
+    assert tr.longitudinal_velocity.max() <= 1.2 + 0.02                                   # keeps the lead's speed
+    assert tr.longitudinal_velocity[-1] == pytest.approx(1.2, abs=0.01)
+    lf.window = None                                     # further away: it closes in faster, then matches
+    lf.on_input("objects", _obj(lead_x + 6.0, 0.0, vx=1.2, cls=ObjectClass.CAR, size=(4.5, 1.8)))
+    tr = lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.05, 1.2), to_ns(5.05))
+    v = tr.longitudinal_velocity
+    assert v.max() > 1.5 and 1.2 - 0.01 <= v[-1] < v.max()           # closes in, then slows towards 1.2 m/s
+    lf.on_input("objects", _obj(25.0, 0.0, vx=0.2, cls=ObjectClass.CAR, size=(4.5, 1.8)))   # too slow: a stop
+    assert lf.trajectory_at(_state(10.0, 0.0, 0.0, 5.1, 1.2), to_ns(5.1)).longitudinal_velocity[-1] == 0.0
 
 
 def test_lane_follow_rejects_requests_without_a_route():
@@ -92,7 +119,7 @@ def test_lane_follow_rejects_requests_without_a_route():
 
 
 def test_road_source_and_lane_polylines():
-    assert SRC.suite("all") == ["R1", "R2", "R3", "R4", "R5", "R6"]
+    assert SRC.suite("all") == ["R1", "R2", "R3", "R4", "R5", "R6", "R7"]
     r5 = SRC.build("R5", 42, CFG)                                            # from the Lanelet2 file
     assert sorted(r5.request.lanes.lane_id.tolist()) == [1001, 1002, 1003, 1004]
     with pytest.raises(ValueError):

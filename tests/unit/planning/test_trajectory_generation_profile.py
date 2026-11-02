@@ -160,12 +160,15 @@ def test_long_curved_road_path_solves_within_limits():
     """A 45 m road path with a 15 m curve (~900 nodes) exceeds the strict QP budget;
     the relaxed retry must solve it (no slow fallback) within all limits."""
     from doraware.evaluation.scenarios.road import RoadScenarios
-    from doraware.interfaces import Header, Pose, VehicleState
-    from doraware.planning.trajectory_planning.plugins.lane_follow.planner import LaneFollow
+    from doraware.interfaces import PlanningResult, PlanningStatus
+    from doraware.planning.trajectory_generation.generator import TrajectoryGenerator
+    from doraware.planning.trajectory_planning.plugins.lane_follow.route import route_centerline
     cfg = load_config(path=REPO_ROOT / "configs" / "road.yaml")
     req = RoadScenarios().build("R2", 42, cfg).request
-    lf = LaneFollow(cfg["planning"]["trajectory_planner"]["lane_follow"], cfg)
-    lf.plan(req, VehicleState(header=Header(stamp=0), pose=Pose.from_xyyaw(req.start.x, req.start.y, req.start.yaw)), 0)
-    assert not lf.gen.speed_profile_fallback, lf.gen.profile.summary()["solver_status"]
-    assert lf.gen.profile.duration < 30.0
-    check_limits(sample_profile(lf.gen.profile), lf.gen.limits)
+    path = route_centerline(req.lanes, req.route, req.start, req.goal)
+    gen = TrajectoryGenerator(cfg["planning"]["trajectory_generation"], cfg["timing"], req.vehicle)
+    gen.on_planning_result(PlanningResult(status=PlanningStatus.SUCCESS, path=path.geometric(0, len(path.s) - 1)),
+                           None, plan_start_ns=0, initial_steering=0.0)
+    assert not gen.speed_profile_fallback, gen.profile.summary()["solver_status"]
+    assert gen.profile.duration < 30.0
+    check_limits(sample_profile(gen.profile), gen.limits)

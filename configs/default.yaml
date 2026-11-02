@@ -88,8 +88,11 @@ planning:
     type: path_pipeline          # a name in planning/trajectory_planning/registry.py or a
                                  # `doraware.trajectory_planners` entry point
     path_pipeline: {}            # planning.path_planner + planning.trajectory_generation in one node
-    lane_follow:                 # route centreline, stops for objects (configs/road.yaml)
-      stop_margin: 2.0           # [m] stop this far before a blocking object
+    lane_follow:                 # online lane following: route centreline, follows / stops for objects (configs/road.yaml)
+      stop_margin: 2.0           # [m] stop this far before a blocking object (and minimum gap to a lead vehicle)
+      time_gap: 1.5              # [s] extra gap to a lead vehicle per m/s of its speed
+      lead_min_speed: 0.5        # [m/s] an object moving along the path at least this fast is followed
+      curvature_smoothing: 3.0   # [m] curvature moving average (straight/arc joints become ramps)
       corridor_margin: 0.4       # [m] lateral margin of the corridor around the vehicle width
       prediction_time: 1.0       # [s] also check where objects will be after this time
       clear_time: 1.0            # [s] the corridor must be clear this long before continuing
