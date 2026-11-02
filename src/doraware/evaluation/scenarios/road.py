@@ -5,6 +5,8 @@ route and scripted traffic (built in code, no external data).
     R2  straight - 90 degree left curve - straight
     R3  straight lane, a pedestrian crosses in front: stop, wait, continue
     R4  two-lane road, an oncoming car passes in the other lane
+    R5  a Lanelet2 map file (data/maps/two_lane_road.osm): two lanelets in a row,
+        a car parked in the neighbouring lane
 
 They exercise the lane / route / object interfaces end to end with the
 ``lane_follow`` trajectory planner (configs/road.yaml).
@@ -14,10 +16,11 @@ from __future__ import annotations
 import dataclasses
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from doraware.core.config import REPO_ROOT
 from doraware.evaluation.scenarios.bundle import FEASIBLE, ExpectedBehavior, ScenarioBundle
 from doraware.interfaces import (Header, LaneMap, LaneRelation, ObjectClass, OccupancyGrid, PlanningRequest, Pose2D,
                                  Route, SimulationScene, VehicleParameters)
@@ -44,6 +47,9 @@ class _Road:
     start: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     goal: Tuple[float, float, float] = (0.0, 0.0, 0.0)
     actors: List[_Actor] = field(default_factory=list)
+    map_file: Optional[str] = None                         # (loader, path) instead of `lanes`
+    map_loader: str = "yaml"
+    route_ids: List[int] = field(default_factory=list)     # lane ids, with map_file
 
 
 def straight(x0: float, y0: float, yaw: float, length: float) -> np.ndarray:
@@ -80,6 +86,10 @@ def _roads() -> Dict[str, _Road]:
                     start=(3.0, 0.0, 0.0), goal=(38.0, 0.0, 0.0),
                     actors=[_Actor(ObjectClass.CAR, (4.5, 1.8, 1.5),
                                    [(0.0, 44.0, LANE_WIDTH, math.pi), (15.0, 1.0, LANE_WIDTH, math.pi)])]),
+        "R5": _Road("Lanelet2 map", "A Lanelet2 map: two lanelets in a row, a car parked in the left lane.",
+                    [], map_file="data/maps/two_lane_road.osm", map_loader="lanelet2", route_ids=[1001, 1003],
+                    start=(3.0, 0.0, 0.0), goal=(45.0, 0.0, 0.0),
+                    actors=[_Actor(ObjectClass.CAR, (4.5, 1.8, 1.5), [(0.0, 22.0, LANE_WIDTH, 0.0)])]),
     }
 
 
@@ -126,7 +136,13 @@ class RoadScenarios:
         if scenario_id not in roads:
             raise ValueError(f"unknown road scenario {scenario_id!r}; available: {sorted(roads)}")
         r = roads[scenario_id]
-        lanes = lane_map(r)
+        if r.map_file:
+            from doraware.maps.registry import load_lane_map
+            lanes = load_lane_map(REPO_ROOT / r.map_file, r.map_loader)
+            route_ids = np.asarray(r.route_ids, dtype=np.int64)
+        else:
+            lanes = lane_map(r)
+            route_ids = np.asarray(lanes.lane_id)[r.route]
         pts = np.stack([lanes.left_x, lanes.left_y], axis=1).tolist() + \
             np.stack([lanes.right_x, lanes.right_y], axis=1).tolist()
         pts = np.asarray(pts)
@@ -151,6 +167,6 @@ class RoadScenarios:
             waypoint_yaw=np.array([p[4] for p in wp], float))
         request = PlanningRequest(header=Header(frame_id="map"), request_id=f"{scenario_id}/0", start=Pose2D(*r.start),
                                   goal=Pose2D(*r.goal), map=grid, vehicle=planner_vehicle, lanes=lanes,
-                                  route=Route(lane_ids=np.asarray(lanes.lane_id)[r.route]))
+                                  route=Route(lane_ids=route_ids))
         expected = ExpectedBehavior(FEASIBLE, True, max_direction_changes=0)
         return ScenarioBundle(scenario_id, r.name, "road", r.description, scene, request, expected, tags=("road",))

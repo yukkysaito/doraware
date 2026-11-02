@@ -92,7 +92,9 @@ def test_lane_follow_rejects_requests_without_a_route():
 
 
 def test_road_source_and_lane_polylines():
-    assert SRC.suite("all") == ["R1", "R2", "R3", "R4"]
+    assert SRC.suite("all") == ["R1", "R2", "R3", "R4", "R5"]
+    r5 = SRC.build("R5", 42, CFG)                                            # from the Lanelet2 file
+    assert sorted(r5.request.lanes.lane_id.tolist()) == [1001, 1002, 1003, 1004]
     with pytest.raises(ValueError):
         SRC.suite("random", 10)
     b = SRC.build("R4", 42, CFG)

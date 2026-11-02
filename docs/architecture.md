@@ -83,7 +83,7 @@ src/doraware/
   evaluation/            evaluator node, metrics, judge
     scenarios/               scenario manager node, ScenarioBundle, registry.py, sources: parking, road
     suite/                   runner (`doraware run`), reports, closed-loop regression
-  maps/                  map loaders (file formats -> LaneMap) + registry.py, plugins/yaml_lanes
+  maps/                  map loaders (file formats -> LaneMap) + registry.py, plugins: lanelet2_osm, yaml_lanes
   recording/             MCAP recorder node, replay (a tool: it uses the simulation and evaluation packages)
   cli.py                 `doraware run | regression | replay`
 ```
@@ -106,7 +106,7 @@ Conventions:
 | Extension | Registry / place | Selected by |
 |---|---|---|
 | path planner | `planning/path_planning/registry.py` | `planning.path_planner.type` |
-| map loader (Lanelet2, OpenDRIVE, ...) | `maps/registry.py` | `load_lane_map(path, type)` in a scenario source |
+| map loader (built in: Lanelet2, yaml; e.g. OpenDRIVE) | `maps/registry.py` | `load_lane_map(path, type)` in a scenario source |
 | trajectory-output planner | `planning/trajectory_planning/registry.py` | `planning.trajectory_planner.type` + `--dataflow dataflows/trajectory_planner.yml` |
 | controller | `control/registry.py` | `control.controller.type` |
 | simulator backend | `simulation/registry.py` | `simulation.backend` |

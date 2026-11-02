@@ -38,5 +38,5 @@ def test_errors(tmp_path):
     with pytest.raises(ValueError, match="no lanes"):
         load_lane_map(f)
     with pytest.raises(ValueError, match="unknown map loader"):
-        load_lane_map(f, "lanelet2")
+        load_lane_map(f, "opendrive")
     assert "yaml" in MAP_LOADERS.names()

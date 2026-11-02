@@ -240,10 +240,12 @@ localization or prediction node subscribes to them directly.
    then draws the objects (outlines coloured by class, with ids) over the simulated
    world, so you can check them against the real obstacles.
 
-Lane maps in other formats (Lanelet2, OpenDRIVE) need a map loader plugin
-(`maps/registry.py`, entry point `doraware.map_loaders`) that converts the file into a
-`LaneMap`; the built-in `yaml` loader (`maps/plugins/yaml_lanes.py`) documents a simple
-file format and is the reference. Scenario sources call `load_lane_map(path, type)`.
+Lane map files are read by map loader plugins (`maps/registry.py`, entry point
+`doraware.map_loaders`) into a `LaneMap`. Built in: `lanelet2` (Lanelet2 OSM XML,
+`local_x`/`local_y` or lat/lon, without the lanelet2 library; `maps/plugins/lanelet2_osm.py`)
+and `yaml` (a simple documented format, reader and writer). Another format, for example
+OpenDRIVE, is one more loader. Scenario sources call `load_lane_map(path, type)`; road
+scenario R5 drives on `data/maps/two_lane_road.osm`.
 
 Today's parking planner plugin takes the occupancy grid of the `PlanningRequest` and does not
 read objects; a planner that does subscribes to `objects` itself (for example as a

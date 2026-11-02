@@ -45,7 +45,8 @@ verified in closed loop on a simulated vehicle, reproducibly.
 | Evaluation | closed-loop scenario suites, regression baseline, MCAP recording, replay | |
 
 With the parking planner, all 107 fixed and 100 random scenarios pass in closed loop, and the
-lane-following reference planner passes the four road scenarios (`configs/road.yaml`). The median goal
+lane-following reference planner passes the five road scenarios (`configs/road.yaml`, one of them on
+a Lanelet2 map file). The median goal
 error is 7 mm / 0.19° and there are no collisions. See [docs/evaluation.md](docs/evaluation.md).
 
 ## Quick start
@@ -98,7 +99,7 @@ Screenshots for documentation: `--set "simulation.screenshot_times=[5.0]" "simul
 | a controller | `control/plugins/<name>/` + `control/registry.py` | `control.controller.type` |
 | a simulator backend | `simulation/plugins/<name>/` + `simulation/registry.py` | `simulation.backend` |
 | a scenario source | `evaluation/scenarios/` + its `registry.py` | `evaluation.scenario_source` |
-| a map loader (Lanelet2, OpenDRIVE, …) | `maps/plugins/<name>/` + `maps/registry.py` | used by scenario sources |
+| a map loader (built in: Lanelet2, yaml; e.g. OpenDRIVE) | `maps/plugins/` + `maps/registry.py` | used by scenario sources |
 | a component (perception, localization, …) | `src/doraware/<component>/` + `interfaces/<domain>.py` | a dataflow |
 
 Plugins in separate pip packages register through entry points (`doraware.planners`,
@@ -116,11 +117,12 @@ src/doraware/
   control/         controller node + registry, gear manager, delay compensation, plugins/mpc
   simulation/      sim bridge node, lockstep coordinator, backend contract + registry, plugins/godot
   evaluation/      evaluator node, metrics, judge, scenarios/ (sources + registry), suite/ (runner, regression)
-  maps/            map loaders (file formats -> LaneMap) + registry
+  maps/            map loaders (Lanelet2 OSM, yaml -> LaneMap) + registry
   recording/       MCAP recorder node, replay
   cli.py           the `doraware` command
 dataflows/         Dora dataflows: closed_loop.yml (path planner), trajectory_planner.yml
-configs/           parameters, one section per package
+configs/           parameters, one section per package; setups as overlays (road.yaml)
+data/maps/         example map files (Lanelet2)
 simulator/godot/   Godot project: scripts/sim (vehicle physics, actuators) and scripts/gui (3D view, HUD)
 tests/             unit/<package>/, integration (Godot), e2e (closed loop), regression baseline
 third_party/       State Lattice planner (git submodule)

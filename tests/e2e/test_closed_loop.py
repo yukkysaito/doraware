@@ -150,7 +150,7 @@ def test_trajectory_planner_extra_inputs_arrive_in_lockstep():
     assert all(stamp == t and n > 0 for t, stamp, n in log), log[:5]
 
 
-@pytest.mark.parametrize("sid", ["R1", "R2", "R3", "R4"])
+@pytest.mark.parametrize("sid", ["R1", "R2", "R3", "R4", "R5"])
 def test_road_lane_following(sid):
     """Lanes, route and objects end to end: the lane_follow trajectory planner (configs/road.yaml)
     reaches the goal on every road scenario; in R3 it stops for the crossing pedestrian."""

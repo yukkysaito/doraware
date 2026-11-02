@@ -28,6 +28,12 @@ def _yaml(params: Dict[str, Any]) -> MapLoader:
     return YamlLaneLoader(**params)
 
 
+@MAP_LOADERS.register("lanelet2")
+def _lanelet2(params: Dict[str, Any]) -> MapLoader:
+    from doraware.maps.plugins.lanelet2_osm import Lanelet2Loader
+    return Lanelet2Loader(**params)
+
+
 def load_lane_map(path: str, loader: str = "yaml", params: Optional[Dict[str, Any]] = None) -> LaneMap:
     lanes = MAP_LOADERS.create(loader, dict(params or {})).load(str(path))
     lanes.validate()
