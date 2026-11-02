@@ -161,6 +161,7 @@ class ClosedLoopMetrics:
         self.physics_contacts = 0
         self.contact_objects: set = set()
         self.command_timeouts = 0
+        self.max_lockstep_wait = 0.0
         self.solver_ok = 0
         self.solver_total = 0
         self.solve_times: List[float] = []
@@ -263,6 +264,7 @@ class ClosedLoopMetrics:
         if s.collision_objects:
             self.contact_objects.update(x for x in s.collision_objects.split(",") if x)
         self.command_timeouts = max(self.command_timeouts, s.command_timeouts)
+        self.max_lockstep_wait = max(self.max_lockstep_wait, s.max_lockstep_wait)
 
     def on_signal_status(self, s: VehicleSignalStatus) -> None:
         self.signals.add(s)
@@ -360,6 +362,7 @@ class ClosedLoopMetrics:
         out["contact_objects"] = ",".join(sorted(self.contact_objects))
         out["out_of_bounds_events"] = self.out_of_bounds
         out["command_timeouts"] = self.command_timeouts
+        out["max_lockstep_wait"] = self.max_lockstep_wait
         out["mpc_solver_success_rate"] = self.solver_ok / self.solver_total if self.solver_total else float("nan")
         st = np.asarray(self.solve_times) if self.solve_times else np.zeros(1)
         out["mpc_solve_time_mean_ms"] = float(st.mean() * 1e3)

@@ -77,10 +77,13 @@ By class (fixed scenarios + seed 42):
 * **Dora 1.1 quirks** worked around in the nodes and the runner: SHM payload lifetime, ~120 s idle
   stop (heartbeat timer), occasional startup hang with many concurrent dataflows (watchdog
   with reported retries).
-* **Rare message stall under parallel load.** With 8 concurrent closed loops, a message was
-  delayed by more than `timing.lockstep_wall_timeout` (10 s) once in 207 runs (N-038, see §2).
-  The lockstep reports it as a command timeout, the vehicle brakes, and the run fails. This is not
-  hidden or retried; rerun the scenario to confirm a suspected infrastructure stall.
+* **Message stalls under parallel load.** With 8 concurrent closed loops, one control command
+  once arrived more than 10 s (wall) late (N-038 in the 2026-11-03 run). In lockstep, sim time is
+  paused while a node waits, so such a delay cannot change results, but the former 10 s liveness
+  timeout declared the controller dead and failed the run. The liveness timeout is now 30 s
+  (`timing.lockstep_wall_timeout`), and every wait longer than `timing.lockstep_stall_warning`
+  (2 s) is reported as a warning and as the metric `max_lockstep_wait`. A producer that really
+  stops is still detected and fails the run (e2e fault-injection tests).
 * The kinematic MPC model (no tire slip) is meant for parking speeds (≤ 1.5 m/s).
 
 ## 5. Reproduction

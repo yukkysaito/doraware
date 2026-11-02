@@ -8,6 +8,8 @@ stamped at or after ``t`` has been received on the input.
 * The first message may take long (it waits for planning, which is not sim
   time): ``timing.planning_wall_timeout``. Later waits use
   ``timing.lockstep_wall_timeout``.
+* A wait longer than ``timing.lockstep_stall_warning`` is reported as a
+  warning (a host or middleware stall; results are not affected).
 * On a timeout the barrier reports a Diagnostics error once and stops waiting
   for good ("starved"): the node continues with what it has, and the expired
   data leads to a safe reaction downstream.
@@ -15,6 +17,7 @@ stamped at or after ``t`` has been received on the input.
 """
 from __future__ import annotations
 
+import time
 from typing import Any, Callable, Optional
 
 from doraware.core.node import Event, NodeRuntime
@@ -31,6 +34,7 @@ class InputBarrier:
         self.enabled = bool(timing["lockstep"])
         self.first_timeout = float(timing["planning_wall_timeout"])
         self.timeout = float(timing["lockstep_wall_timeout"])
+        self.stall_warning = float(timing.get("lockstep_stall_warning", self.timeout))
         self.latest_stamp = -1
         self.starved = False
 
@@ -50,7 +54,12 @@ class InputBarrier:
             return True
         while not self.starved and self.latest_stamp < need_ns:
             first = self.latest_stamp < 0
+            w0 = time.monotonic()
             got, _ = self.rt.wait_for(self.accepts, self.first_timeout if first else self.timeout)
+            waited = time.monotonic() - w0
+            if got is not None and not first and waited > self.stall_warning:
+                self.rt.diagnose(now_ns, DiagnosticLevel.WARN, f"{self.input_id} late by {waited:.1f} s (wall): "
+                                 "lockstep stall", waited=waited)
             if got is None:
                 self.starved = True
                 self.rt.diagnose(now_ns, DiagnosticLevel.ERROR, f"{self.input_id} barrier timeout: producer silent",

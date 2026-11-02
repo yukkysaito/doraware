@@ -35,6 +35,8 @@ class Bridge:
         self.coord = StepCoordinator(self.timing)
         self.lockstep = bool(self.timing["lockstep"])
         self.wall_timeout = float(self.timing["lockstep_wall_timeout"])
+        self.stall_warning = float(self.timing["lockstep_stall_warning"])
+        self.max_wait = 0.0       # [s, wall] longest lockstep wait after the first command (stalls)
         self.rtf = float(self.timing.get("realtime_factor") or 0.0)
         self.max_sim_time = float(cfg["evaluation"]["max_sim_time"]) + 5.0
         self.gui = os.environ.get("DORAWARE_GUI") == "1"
@@ -50,6 +52,7 @@ class Bridge:
         self.controller_silent = False
         self.expired = False
         self.timeouts = 0
+        self.last_seen: Dict[str, tuple] = {}   # input -> (latest stamp, wall time received): timeout reports
         # vehicle signals: latched like on a real vehicle; in lockstep the command of every
         # planner tick is awaited (only if a signal source is wired into this dataflow)
         self.signals_wired = rt.input_connected("vehicle_signal_command")
@@ -75,6 +78,9 @@ class Bridge:
             return
         iid = ev["id"]
         msg = self.rt.decode(ev)
+        stamp = getattr(getattr(msg, "header", None), "stamp", None)
+        if stamp is not None:
+            self.last_seen[iid] = (int(stamp), time.monotonic())
         if iid == "control_command":
             self.commands[msg.header.stamp] = msg
         elif iid == "vehicle_signal_command":
@@ -120,9 +126,18 @@ class Bridge:
         limit = float(self.timing["planning_wall_timeout"]) if first else self.wall_timeout
         if silent:
             limit = 0.05
+        w0 = time.monotonic()
         ok = self.pump(received, limit)
+        waited = time.monotonic() - w0
+        if not first:      # the first wait includes planning (wall time by design)
+            self.max_wait = max(self.max_wait, waited)
+            if ok and waited > self.stall_warning:
+                self.rt.diagnose(t, DiagnosticLevel.WARN, f"{what} late by {waited:.1f} s (wall): lockstep stall",
+                                 step=self.step, waited=waited)
         if not ok and not silent:
-            self.rt.diagnose(t, DiagnosticLevel.ERROR, f"{what} timeout (lockstep)", step=self.step)
+            now = time.monotonic()
+            seen = {k: {"stamp": v[0], "age_wall": round(now - v[1], 3)} for k, v in sorted(self.last_seen.items())}
+            self.rt.diagnose(t, DiagnosticLevel.ERROR, f"{what} timeout (lockstep)", step=self.step, last_seen=seen)
         return ok
 
     # ---------------------------------------------------------- stepping
@@ -135,7 +150,7 @@ class Bridge:
         self.rt.send("sim_status", SimulationStatus(
             header=self.rt.header(t, "sim_status"), state=SimulationState.RUNNING, step_count=self.step,
             physics_dt=self.coord.dt, collision_count=f.contacts, collision_objects=",".join(f.contact_names),
-            step_wall_time=f.step_wall_time, command_timeouts=self.timeouts))
+            step_wall_time=f.step_wall_time, command_timeouts=self.timeouts, max_lockstep_wait=self.max_wait))
 
     def select_command(self) -> ControlCommand:
         t = self.coord.time_ns(self.step)

@@ -127,7 +127,7 @@ The schema is derived from the dataclass annotations, and the metadata carries
 | `PlanningRequest` | start, goal (`Pose2D`), map, vehicle, opaque `planner_config` JSON |
 | `PlanningResult` | `status` (`PlanningStatus`), message, planning time, `GeometricPath` (x, y, yaw, curvature, gear) |
 | `SimulationScene` | map bounds, obstacle boxes, initial pose, goal pose (for display), vehicle |
-| `SimulationStatus` | state, step count, physics dt, collision count/objects, command timeouts |
+| `SimulationStatus` | state, step count, physics dt, collision count/objects, command timeouts, longest lockstep wait (wall) |
 | `Diagnostics` | node, level, message, JSON values |
 | `ScenarioDone` | outcome, passed, JSON summary |
 
@@ -196,8 +196,11 @@ is the only clock source.
 
 Because each consumer waits for the producer's message of the same sim time,
 the result does not depend on host load or rendering frame rate. Every
-barrier has a wall-clock timeout (`lockstep_wall_timeout`): when it fires the
-node proceeds with what it has and reports a `Diagnostics` error (fault
+barrier has a wall-clock liveness timeout (`lockstep_wall_timeout`, 30 s). While
+a node waits, sim time is paused, so a late message cannot change results; waits
+longer than `lockstep_stall_warning` (2 s) are only reported (warning diagnostics,
+`SimulationStatus.max_lockstep_wait`). When the timeout fires, the producer is
+declared dead: the node proceeds with what it has and reports a `Diagnostics` error (fault
 injection tests use this: a silent planner → expired trajectory → safe stop;
 a silent controller → expired command → simulator emergency braking).
 

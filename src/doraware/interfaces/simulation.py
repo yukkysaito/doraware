@@ -28,6 +28,7 @@ class SimulationStatus:
     collision_objects: str = ""             # comma separated names of contacted bodies
     step_wall_time: float = 0.0             # wall time of the last physics chunk [s]
     command_timeouts: int = 0               # cumulative expired-command events
+    max_lockstep_wait: float = 0.0          # [s, wall] longest wait for a producer so far (stall indicator)
 
 
 @dataclass

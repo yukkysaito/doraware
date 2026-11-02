@@ -20,7 +20,11 @@ timing:
   trajectory_validity: 1.0     # [s] a trajectory expires this long after its stamp
   command_validity: 0.1        # [s] a control command expires this long after its stamp
   lockstep: true               # deterministic step-based coordination (docs/architecture.md §6)
-  lockstep_wall_timeout: 10.0  # [s, wall] max wait for an expected message before declaring a timeout
+  # Liveness, not timing: sim time is paused while a node waits, so a late message cannot change
+  # results. A producer silent for this long is declared dead (timeout -> safe reaction, run fails).
+  # Shorter waits are host / middleware stalls; those above lockstep_stall_warning are reported.
+  lockstep_wall_timeout: 30.0  # [s, wall]
+  lockstep_stall_warning: 2.0  # [s, wall] report waits longer than this (diagnostics, max_lockstep_wait)
   planning_wall_timeout: 600.0 # [s, wall] max wait for the first plan (planning time is not sim time)
   realtime_factor: 0.0         # 0 = as fast as possible; 1.0 = pace the simulation at wall-clock speed
 

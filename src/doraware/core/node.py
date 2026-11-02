@@ -48,10 +48,16 @@ class NodeRuntime:
         self._seq[output] += 1
         return Header(stamp=int(stamp_ns), frame_id=frame_id, sequence_id=self._seq[output], clock=clock)
 
+    SLOW_SEND = 0.5   # [s, wall] a send_output that takes longer is reported (middleware stall)
+
     def send(self, output: str, msg) -> None:
         meta = codec.metadata(msg)
         meta["wall_send_ns"] = time.time_ns()
+        t0 = time.monotonic()
         self.node.send_output(output, codec.encode(msg), meta)
+        took = time.monotonic() - t0
+        if took > self.SLOW_SEND:
+            self.log.warning("send_output(%s) blocked for %.2f s (wall)", output, took)
 
     def diagnose(self, stamp_ns: int, level: DiagnosticLevel, message: str, output: str = "diagnostics",
                  **values) -> None:
