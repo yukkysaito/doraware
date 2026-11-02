@@ -23,14 +23,11 @@ criteria are defined in [testing.md](testing.md).
 | pytest (148 unit, 23 Godot integration, 17 end-to-end) | 188 / 188 pass |
 | closed-loop regression vs. baseline | passed |
 
-Latest check (2026-11-03, after the plugin restructuring, the vehicle signals and the startup-race
-fix; 8 parallel workers): pytest 171 unit, 28 integration and 18 end-to-end pass; regression passed;
-**206 / 207** scenarios pass. The failure is N-038: at t = 1.74 s one control command arrived more
-than 10 s (wall) late, the sim bridge braked as designed and the run was judged a failure
-("control command timeouts"). The Dora log shows only Dora's own output-send diagnostics
-(dora-rs/dora#2742) and no error from a node. N-038 passes in 6 of 6 reruns with identical results,
-and the quality numbers below are unchanged (185 goal-reaching runs: median 7 mm / 0.19°, no
-collisions).
+Latest check (2026-11-03, after the plugin restructuring, the vehicle signals, the startup-race
+fix and the lockstep liveness change; 8 parallel workers): pytest 171 unit, 28 integration and 18
+end-to-end pass; regression passed; **207 / 207** scenarios pass (186 goal reached, median 7 mm /
+0.19°, no collisions, no command timeouts, longest lockstep wait 0.07 s). An earlier run of the same
+code before the liveness change failed N-038 once because of a > 10 s middleware stall (see §4).
 
 By class (fixed scenarios + seed 42):
 
