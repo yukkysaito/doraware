@@ -93,6 +93,8 @@ planning:
       time_gap: 1.5              # [s] extra gap to a lead vehicle per m/s of its speed
       lead_min_speed: 0.5        # [m/s] an object moving along the path at least this fast is followed
       curvature_smoothing: 3.0   # [m] curvature moving average (straight/arc joints become ramps)
+      lane_change_length: 10.0   # [m] length of the move into / back from the neighbour lane when passing
+      lane_change_margin: 0.5    # [m] lateral clearance required in the neighbour lane
       corridor_margin: 0.4       # [m] lateral margin of the corridor around the vehicle width
       prediction_time: 1.0       # [s] also check where objects will be after this time
       clear_time: 1.0            # [s] the corridor must be clear this long before continuing

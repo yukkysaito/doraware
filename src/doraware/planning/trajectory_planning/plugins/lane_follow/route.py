@@ -8,7 +8,7 @@ import math
 import numpy as np
 
 from doraware.core.geometry import wrap_angles
-from doraware.interfaces import GeometricPath, Gear, LaneMap, Pose2D, Route
+from doraware.interfaces import GeometricPath, Gear, LaneMap, LaneRelation, Pose2D, Route
 
 
 class RouteError(ValueError):
@@ -103,3 +103,51 @@ def route_centerline(lanes: LaneMap, route: Route, start: Pose2D, goal: Pose2D, 
     if s1 <= s0 + 1.0:
         raise RouteError("the goal is not ahead of the start on the route")
     return full.cut(s0, s1)
+
+
+def neighbor_offset(lanes: LaneMap, route: Route, path: DensePath, side: LaneRelation) -> np.ndarray:
+    """Signed lateral offset (+ = left of the path) of the same-direction neighbour
+    lane (``side``: LEFT_NEIGHBOR / RIGHT_NEIGHBOR) at every path point; NaN where
+    the route lane there has no such neighbour."""
+    out = np.full(len(path.s), np.nan)
+    rel_from, rel_to, rel_type = (np.asarray(a) for a in (lanes.relation_from, lanes.relation_to, lanes.relation_type))
+    for lid in route.lane_ids:
+        i = lanes.index_of(int(lid))
+        hits = rel_to[(rel_from == i) & (rel_type == int(side))]
+        if len(hits) == 0:
+            continue
+        own, nb = lanes.centerline(i), lanes.centerline(int(hits[0]))
+        if len(own) < 2 or len(nb) < 2:
+            continue
+        for k in range(len(path.s)):
+            px, py = path.x[k], path.y[k]
+            j = int(np.argmin(np.hypot(own[:, 0] - px, own[:, 1] - py)))
+            if np.hypot(own[j, 0] - px, own[j, 1] - py) > 0.5:
+                continue                                    # this path point is not on route lane i
+            m = int(np.argmin(np.hypot(nb[:, 0] - px, nb[:, 1] - py)))
+            nx, ny = -math.sin(path.yaw[k]), math.cos(path.yaw[k])
+            dx, dy = nb[m, 0] - px, nb[m, 1] - py
+            along = dx * math.cos(path.yaw[k]) + dy * math.sin(path.yaw[k])
+            if abs(along) < 0.75:                            # the neighbour runs alongside here
+                out[k] = dx * nx + dy * ny
+    return out
+
+
+def shifted(path: DensePath, offset: np.ndarray) -> DensePath:
+    """The path moved sideways by ``offset`` (+ = left) at every point; arc length,
+    heading and curvature recomputed."""
+    nx, ny = -np.sin(path.yaw), np.cos(path.yaw)
+    x, y = path.x + nx * offset, path.y + ny * offset
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(x), np.diff(y)))])
+    yaw = np.unwrap(np.arctan2(np.gradient(y), np.gradient(x)))
+    k = np.gradient(yaw, s)
+    return DensePath(s, x, y, wrap_angles(yaw), k, path.speed_limit)
+
+
+def lane_change_profile(s: np.ndarray, s_out: float, s_back: float, length: float, width: float) -> np.ndarray:
+    """Lateral offset along s: 0, a smooth (cosine) ramp to ``width`` over ``length``
+    starting at ``s_out``, held, and back to 0 over ``length`` starting at ``s_back``."""
+    def ramp(u):
+        u = np.clip(u, 0.0, 1.0)
+        return 0.5 - 0.5 * np.cos(math.pi * u)
+    return width * (ramp((s - s_out) / length) - ramp((s - s_back) / length))

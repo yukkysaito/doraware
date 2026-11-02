@@ -9,6 +9,8 @@ route and scripted traffic (built in code, no external data).
         a car parked in the neighbouring lane
     R7  a lead vehicle: the car drives ahead, stops for 4 s and moves on; the
         vehicle follows at a time gap, stops behind it and continues
+    R8  the Lanelet2 two-lane road with a car stopped in the vehicle's lane: the
+        vehicle passes it through the free neighbour lane and returns
     R6  an OpenDRIVE map file (data/maps/curve_road.xodr): straight - 90 degree
         left arc - straight over three linked roads
 
@@ -99,6 +101,10 @@ def _roads() -> Dict[str, _Road]:
                     actors=[_Actor(ObjectClass.CAR, (4.5, 1.8, 1.5),
                                    [(0.0, 16.0, 0.0, 0.0), (2.0, 16.0, 0.0, 0.0), (14.5, 31.0, 0.0, 0.0),
                                     (18.5, 31.0, 0.0, 0.0), (58.5, 91.0, 0.0, 0.0)])]),
+        "R8": _Road("Pass a stopped car", "A car stands in the lane; pass it through the neighbour lane.",
+                    [], map_file="data/maps/two_lane_road.osm", map_loader="lanelet2", route_ids=[1001, 1003],
+                    start=(3.0, 0.0, 0.0), goal=(47.0, 0.0, 0.0),
+                    actors=[_Actor(ObjectClass.CAR, (4.5, 1.8, 1.5), [(0.0, 26.0, 0.0, 0.0)])]),
         "R6": _Road("OpenDRIVE map", "An OpenDRIVE map: straight, a 90 degree left arc, straight (three roads).",
                     [], map_file="data/maps/curve_road.xodr", map_loader="opendrive",
                     route_ids=[1049, 2049, 3049], start=(2.0, 0.0, 0.0), goal=(31.75, 28.0, math.pi / 2)),

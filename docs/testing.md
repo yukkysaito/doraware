@@ -58,9 +58,10 @@ simulated vehicle are reported separately (`min_clearance_planned`, `min_clearan
     hazard lights; signal states are deterministic and reproduced by command re-simulation.
 12. trajectory planner dataflow — `dataflows/trajectory_planner.yml` with the `path_pipeline`
     plugin gives the same closed loop as the default dataflow, bit for bit.
-13. road scenarios — `configs/road.yaml` (lane_follow): R1–R7 reach the goal (R5 on a Lanelet2,
+13. road scenarios — `configs/road.yaml` (lane_follow): R1–R8 reach the goal (R5 on a Lanelet2,
     R6 on an OpenDRIVE map file); in R3 the vehicle stands before the crossing pedestrian; in R7 it
-    follows a lead vehicle, stops behind it and continues.
+    follows a lead vehicle, stops behind it and continues; in R8 it passes a stopped car through the
+    neighbour lane and returns.
 
 ## Updating the regression baseline
 

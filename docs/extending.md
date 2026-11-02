@@ -185,7 +185,8 @@ the `PlanningRequest` (`LaneMap`, `Route`), the objects (`PerceivedObjects`, gro
 truth until perception exists) as a declared input, and the ego state. The
 `lane_follow` plugin (`plugins/lane_follow/`) is a complete small example that uses all
 three and, like a learned planner, recomputes its trajectory every tick: it follows lead
-vehicles at a time gap and stops for other objects in its corridor. `configs/road.yaml`
+vehicles at a time gap, stops for other objects in its corridor, and passes a stopped
+obstacle through a free same-direction neighbour lane. `configs/road.yaml`
 runs it on the `road` scenarios (lanes, route, a crossing pedestrian, oncoming and lead
 vehicles, Lanelet2 and OpenDRIVE maps). Lane maps from Lanelet2 or OpenDRIVE need a loader that
 converts them into `LaneMap`; none exists yet.
