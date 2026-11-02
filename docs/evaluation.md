@@ -24,8 +24,9 @@ criteria are defined in [testing.md](testing.md).
 | closed-loop regression vs. baseline | passed |
 
 Latest check (2026-11-03, current code: plugin layout, vehicle signals, trajectory planner node,
-perception contract and ground truth, scripted actors; 8 parallel workers): pytest 180 unit,
-30 integration and 24 end-to-end pass; regression passed; **207 / 207** scenarios pass (186 goal
+perception contract and ground truth, scripted actors, lane maps and routes; 8 parallel workers):
+pytest 189 unit, 30 integration and 24 end-to-end pass (including the four road scenarios with the
+lane-following reference planner); regression passed; **207 / 207** parking scenarios pass (186 goal
 reached, median 7 mm / 0.19°, no collisions, no command timeouts, longest lockstep wait 0.08 s).
 An earlier run before the lockstep liveness change failed N-038 once because of a > 10 s middleware
 stall (see §4).
